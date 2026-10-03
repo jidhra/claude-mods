@@ -11,7 +11,7 @@ const todos = atom({ plugin: 'pinboard', key: 'todos' } as const, [] as Todo[])
 const links = atom({ plugin: 'pinboard', key: 'links' } as const, [] as Pin[])
 
 const TODO_FORMAT =
-  'When you lay out a task list for the work, write it as Markdown checkboxes (`- [ ] item`), and when items finish, list them again as `- [x] item` with the same wording.'
+  'When you lay out a task list for the work, write it as Markdown checkboxes (`- [ ] item` open, `- [x] item` done), one action per checkbox. Whenever any item changes, list the whole task list again, done items included.'
 
 // Lines of prose: fenced code, quotes and tables dropped
 function proseLines(text: string): string[] {
@@ -37,12 +37,6 @@ export const todosIn = (text: string): Todo[] =>
     const m = /^\s*[-*+]\s+\[([ xX])\]\s+(.+)$/.exec(line)
     return m ? [{ text: clean(m[2] ?? ''), isDone: m[1] !== ' ' }] : []
   })
-
-// Same wording updates an item; new wording appends
-export function mergeTodos(old: Todo[], fresh: Todo[]): Todo[] {
-  const merged = old.map(t => fresh.find(f => f.text === t.text) ?? t)
-  return [...merged, ...fresh.filter(f => !old.some(t => t.text === f.text))]
-}
 
 const URL = /https:\/\/[A-Za-z0-9.-]+(?::\d+)?(?:\/[A-Za-z0-9\-._~:/?#[\]!$&'()*+,;=%@]*)?/g
 
@@ -97,8 +91,9 @@ export const register: Register = on => {
     await capture($, async () => {
       // Each reply's questions replace the last reply's
       await update($, asks, () => questionsIn(e.answer))
+      // A reply's checkbox list is the whole list: it replaces the last one
       const fresh = todosIn(e.answer)
-      if (fresh.length > 0) await update($, todos, old => mergeTodos(old, fresh))
+      if (fresh.length > 0) await update($, todos, () => fresh)
     })
     return done
   })

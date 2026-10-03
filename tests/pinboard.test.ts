@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { mergeTodos, questionsIn, todosIn, urlPins } from '../hooks/register'
+import { questionsIn, todosIn, urlPins } from '../hooks/register'
 
 const SURFACES = ['terminal', 'desktop'] as const
 const PANE = {
@@ -28,17 +28,10 @@ describe('parse', () => {
     expect(questionsIn(answer)).toEqual(['Keep the pane?', 'Add tests?'])
   })
 
-  test('checkboxes become todos and same wording updates them', () => {
-    const first = todosIn('- [ ] Write it\n- [ ] Test it\n1. not a todo')
-    expect(first).toEqual([
+  test('checkboxes become todos, numbered lines do not', () => {
+    expect(todosIn('- [ ] Write it\n* [x] Test it\n1. not a todo')).toEqual([
       { text: 'Write it', isDone: false },
-      { text: 'Test it', isDone: false },
-    ])
-    const later = todosIn('* [x] Write it\n- [ ] Ship it')
-    expect(mergeTodos(first, later)).toEqual([
-      { text: 'Write it', isDone: true },
-      { text: 'Test it', isDone: false },
-      { text: 'Ship it', isDone: false },
+      { text: 'Test it', isDone: true },
     ])
   })
 
@@ -72,6 +65,14 @@ describe('pane', () => {
     const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
     expect(await texts(ui)).toContain('No open questions.')
     expect(await texts(ui)).toContain('○ Test it')
+    await ui.unmount()
+    // A new checkbox list replaces the old one, so reworded items don't linger
+    await $.turn.complete(turn('- [x] Write and test it\n- [ ] Ship it', 't3'))
+    const next = await $.ui.mount({ ...PANE, surface: 'terminal' })
+    const all = await texts(next)
+    expect(all).toContain('✓ Write and test it')
+    expect(all).toContain('○ Ship it')
+    expect(all).not.toContain('Test it')
   })
 
   test('links from a tool result are pinned and clear empties them', async ($, on) => {

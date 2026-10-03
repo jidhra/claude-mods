@@ -25,7 +25,7 @@ The current board, with ids, is added to the end of the system prompt on every r
 ## Install
 
 ```bash
-claude plugin marketplace add <owner>/pinboard
+claude plugin marketplace add sirkitree/pinboard
 claude plugin install pinboard@pinboard
 ```
 

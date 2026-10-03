@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "description": "Pins the session's open questions, todos and created links in a sidebar pane",
   "author": { "name": "Jerad Bitner" },
+  "homepage": "https://github.com/sirkitree/pinboard",
+  "repository": "https://github.com/sirkitree/pinboard",
   "license": "MIT",
   "keywords": ["mod", "pane", "todos", "questions", "links"],
   "types": "./types/index.d.ts"

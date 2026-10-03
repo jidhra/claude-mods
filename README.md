@@ -2,6 +2,10 @@
 
 A Claude Code mod that keeps the things you need to act on in a sidebar pane, so they don't scroll out of view in the transcript.
 
+![Pinboard pane beside a Claude Code session, with one open decision and two of four todos done](docs/board-in-progress.png)
+
+The story of how it came together: [Pinboard: a Claude Code mod](https://jeradbitner.com/blog/pinboard-claude-code-mod).
+
 ## What it pins
 
 - **Open decisions**: questions Claude needs you to answer. They stay pinned until Claude closes them after you answer.

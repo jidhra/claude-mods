@@ -10,8 +10,10 @@ const asks = atom({ plugin: 'pinboard', key: 'asks' } as const, [] as string[])
 const todos = atom({ plugin: 'pinboard', key: 'todos' } as const, [] as Todo[])
 const links = atom({ plugin: 'pinboard', key: 'links' } as const, [] as Pin[])
 
-const TODO_FORMAT =
-  'When you lay out a task list for the work, write it as Markdown checkboxes (`- [ ] item` open, `- [x] item` done), one action per checkbox. Whenever any item changes, list the whole task list again, done items included.'
+const FORMAT = [
+  'When you lay out a task list for the work, write it as Markdown checkboxes (`- [ ] item` open, `- [x] item` done), one action per checkbox. Whenever any item changes, list the whole task list again, done items included.',
+  'When something needs the user to decide, write it as `- [?] question`. Once it is decided, write `- [=] question: answer`. Whenever any decision opens or closes, list every decision still open again as `- [?]`.',
+].join('\n')
 
 // Lines of prose: fenced code, quotes and tables dropped
 function proseLines(text: string): string[] {
@@ -29,8 +31,14 @@ const clean = (line: string) =>
     .replace(/\*\*|__|`/g, '')
     .trim()
 
-export const questionsIn = (text: string): string[] =>
-  [...new Set(proseLines(text).map(clean).filter(line => /\?\)?$/.test(line)))]
+// The open decisions a reply lists, or undefined when it lists none open or closed
+export function decisionsIn(text: string): string[] | undefined {
+  const marked = proseLines(text).flatMap(line => {
+    const m = /^\s*[-*+]\s+\[([?=])\]\s+(.+)$/.exec(line)
+    return m ? [{ isOpen: m[1] === '?', text: clean(m[2] ?? '') }] : []
+  })
+  return marked.length ? [...new Set(marked.filter(d => d.isOpen).map(d => d.text))] : undefined
+}
 
 export const todosIn = (text: string): Todo[] =>
   proseLines(text).flatMap(line => {
@@ -60,7 +68,7 @@ async function capture($: EngineInterface, change: () => Promise<unknown>): Prom
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'pinboard', description: 'Open the pane of open questions, todos and links', immediate: true })
+    await $.command.register({ name: 'pinboard', description: 'Open the pane of open decisions, todos and links', immediate: true })
     return next(e)
   })
 
@@ -71,7 +79,7 @@ export const register: Register = on => {
 
   on('prompt.compose', async ($, e, next) => {
     const { sections } = await next(e)
-    return { sections: [...sections, { id: 'pinboard:todos', text: TODO_FORMAT, scope: 'session' }] }
+    return { sections: [...sections, { id: 'pinboard:todos', text: FORMAT, scope: 'session' }] }
   })
 
   // A tool result with a few links made or touched them; a long list is a listing
@@ -89,8 +97,9 @@ export const register: Register = on => {
     const done = await next(e)
     if (e.agentId || e.isAborted) return done
     await capture($, async () => {
-      // Each reply's questions replace the last reply's
-      await update($, asks, () => questionsIn(e.answer))
+      // A reply that marks decisions lists every one still open; other replies leave them be
+      const open = decisionsIn(e.answer)
+      if (open) await update($, asks, () => open)
       // A reply's checkbox list is the whole list: it replaces the last one
       const fresh = todosIn(e.answer)
       if (fresh.length > 0) await update($, todos, () => fresh)
@@ -126,8 +135,8 @@ export const register: Register = on => {
 
     return (
       <Box flexDirection="column" width={inner + 2} padding={1}>
-        {header('Waiting on you', allAsks.length ? String(allAsks.length) : '')}
-        {allAsks.length === 0 && empty('No open questions.')}
+        {header('Open decisions', allAsks.length ? String(allAsks.length) : '')}
+        {allAsks.length === 0 && empty('No open decisions.')}
         {allAsks.map(q => item('?', q))}
         <Text> </Text>
 

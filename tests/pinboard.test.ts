@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { questionsIn, todosIn, urlPins } from '../hooks/register'
+import { decisionsIn, todosIn, urlPins } from '../hooks/register'
 
 const SURFACES = ['terminal', 'desktop'] as const
 const PANE = {
@@ -23,9 +23,11 @@ const texts = async (ui: { findAll: (q: { type: string }) => Promise<{ text: str
 const turn = (answer: string, turnId = 't') => ({ answer, durationMs: 1, isAborted: false, turnId, reason: 'answer' as const })
 
 describe('parse', () => {
-  test('questions come from prose lines ending in ?, not code or quotes', () => {
-    const answer = '1. Keep the pane?\n2. **Add tests?**\n```\nok?\n```\n> quoted?\nPlain line.'
-    expect(questionsIn(answer)).toEqual(['Keep the pane?', 'Add tests?'])
+  test('decisions come from [?] and [=] items, not plain questions or code', () => {
+    const answer = 'Why did it break?\n- [?] Keep the pane?\n- [=] **Add tests?**: yes\n```\n- [?] in code\n```'
+    expect(decisionsIn(answer)).toEqual(['Keep the pane?'])
+    expect(decisionsIn('- [=] Keep the pane?: yes')).toEqual([])
+    expect(decisionsIn('Should I ship it?')).toBeUndefined()
   })
 
   test('checkboxes become todos, numbered lines do not', () => {
@@ -45,29 +47,41 @@ describe('parse', () => {
 })
 
 describe('pane', () => {
-  test('a reply pins its questions and todos, and the next reply replaces the questions', async ($, on) => {
+  test('decisions stay until decided, and todo lists replace each other', async ($, on) => {
     on('turn.complete', () => ({ text: '' }))
     on('ui.open', () => ({ value: { isPlaced: true } }))
-    await $.turn.complete(turn('- [x] Write it\n- [ ] Test it\n\nShould I ship it?', 't1'))
+    await $.turn.complete(turn('- [x] Write it\n- [ ] Test it\n\n- [?] Should I ship it?\n- [?] Which owner?', 't1'))
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ ...PANE, surface })
       const all = await texts(ui)
       expect(all).toContain('? Should I ship it?')
       expect(all).toContain('✓ Write it')
       expect(all).toContain('○ Test it')
+      expect(all).toContain('? Which owner?')
       expect(all).toContain('1/2')
       // The bullet sits apart from wrapping text, so a second line indents under the text
       expect((await ui.find({ type: 'Text', text: 'Test it' }))?.props.wrap).toBe('wrap')
       expect((await ui.find({ type: 'Text', text: 'Should I ship it?' }))?.props.wrap).toBe('wrap')
       await ui.unmount()
     }
-    await $.turn.complete(turn('Done. - nothing to ask', 't2'))
-    const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-    expect(await texts(ui)).toContain('No open questions.')
+    // A reply without markers leaves the decisions alone
+    await $.turn.complete(turn('Thanks. Anything else?', 't2'))
+    let ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+    expect(await texts(ui)).toContain('? Which owner?')
     expect(await texts(ui)).toContain('○ Test it')
     await ui.unmount()
+    // Deciding one leaves the other open; deciding the last empties the section
+    await $.turn.complete(turn('- [=] Should I ship it?: yes\n- [?] Which owner?', 't3'))
+    ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+    expect(await texts(ui)).not.toContain('Should I ship it?')
+    expect(await texts(ui)).toContain('? Which owner?')
+    await ui.unmount()
+    await $.turn.complete(turn('- [=] Which owner?: sirkitree', 't4'))
+    ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+    expect(await texts(ui)).toContain('No open decisions.')
+    await ui.unmount()
     // A new checkbox list replaces the old one, so reworded items don't linger
-    await $.turn.complete(turn('- [x] Write and test it\n- [ ] Ship it', 't3'))
+    await $.turn.complete(turn('- [x] Write and test it\n- [ ] Ship it', 't5'))
     const next = await $.ui.mount({ ...PANE, surface: 'terminal' })
     const all = await texts(next)
     expect(all).toContain('✓ Write and test it')

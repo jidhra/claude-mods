@@ -1,11 +1,13 @@
-export type Todo = { text: string; isDone: boolean }
+export type Todo = { id: string; text: string; isDone: boolean }
+
+export type Decision = { id: string; text: string }
 
 export type Pin = { href: string; label: string }
 
 declare module 'claude-code' {
   interface PluginState {
     pinboard: {
-      asks: string[]
+      decisions: Decision[]
       todos: Todo[]
       links: Pin[]
     }

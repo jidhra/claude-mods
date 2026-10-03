@@ -1,50 +1,72 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Pin, Todo } from '../types'
+import type { Decision, Pin, Todo } from '../types'
 
 const PANE = 'pinboard'
 const TITLE = 'Pinboard'
+const TOOL = 'mcp__pinboard__update'
 
-const asks = atom({ plugin: 'pinboard', key: 'asks' } as const, [] as string[])
+const decisions = atom({ plugin: 'pinboard', key: 'decisions' } as const, [] as Decision[])
 const todos = atom({ plugin: 'pinboard', key: 'todos' } as const, [] as Todo[])
 const links = atom({ plugin: 'pinboard', key: 'links' } as const, [] as Pin[])
 
-const FORMAT = [
-  'When you lay out a task list for the work, write it as Markdown checkboxes (`- [ ] item` open, `- [x] item` done), one action per checkbox. Whenever any item changes, list the whole task list again, done items included.',
-  'When something needs the user to decide, write it as `- [?] question`. Once it is decided, write `- [=] question: answer`. Whenever any decision opens or closes, list every decision still open again as `- [?]`.',
-].join('\n')
+const DESCRIPTION =
+  "Keep the session's task list and open decisions on the user's Pinboard, a sidebar that stays in view while the transcript scrolls. " +
+  'Use it in place of writing task lists or decision lists in your reply. ' +
+  'add_todos: one action per item. done_todos / remove_todos: todo ids. ' +
+  'open_decisions: questions that need the user to choose. decide: close a decision by id once the user has answered. ' +
+  'The current board, with ids, is at the end of your system prompt.'
 
-// Lines of prose: fenced code, quotes and tables dropped
-function proseLines(text: string): string[] {
-  let inFence = false
-  return text.split('\n').filter(line => {
-    if (/^\s*(```|~~~)/.test(line)) inFence = !inFence
-    else if (!inFence && !/^\s*[>|]/.test(line)) return true
-    return false
-  })
+const strings = { type: 'array', items: { type: 'string' } }
+const SCHEMA = {
+  type: 'object',
+  properties: {
+    add_todos: strings,
+    done_todos: strings,
+    remove_todos: strings,
+    open_decisions: strings,
+    decide: {
+      type: 'array',
+      items: { type: 'object', properties: { id: { type: 'string' }, answer: { type: 'string' } }, required: ['id', 'answer'] },
+    },
+  },
 }
 
-const clean = (line: string) =>
-  line
-    .replace(/^\s*(?:[-*+]|\d+[.)])\s+/, '')
-    .replace(/\*\*|__|`/g, '')
-    .trim()
-
-// The open decisions a reply lists, or undefined when it lists none open or closed
-export function decisionsIn(text: string): string[] | undefined {
-  const marked = proseLines(text).flatMap(line => {
-    const m = /^\s*[-*+]\s+\[([?=])\]\s+(.+)$/.exec(line)
-    return m ? [{ isOpen: m[1] === '?', text: clean(m[2] ?? '') }] : []
-  })
-  return marked.length ? [...new Set(marked.filter(d => d.isOpen).map(d => d.text))] : undefined
+export type Update = {
+  add_todos?: string[]
+  done_todos?: string[]
+  remove_todos?: string[]
+  open_decisions?: string[]
+  decide?: { id: string; answer: string }[]
 }
 
-export const todosIn = (text: string): Todo[] =>
-  proseLines(text).flatMap(line => {
-    const m = /^\s*[-*+]\s+\[([ xX])\]\s+(.+)$/.exec(line)
-    return m ? [{ text: clean(m[2] ?? ''), isDone: m[1] !== ' ' }] : []
-  })
+type Board = { todos: Todo[]; decisions: Decision[] }
+
+// The next id for a prefix: one past the highest in use
+const nextId = (prefix: string, ids: string[]) =>
+  prefix + (Math.max(0, ...ids.map(id => Number(id.slice(prefix.length)) || 0)) + 1)
+
+export function applyUpdate(board: Board, change: Update): Board {
+  let { todos: t, decisions: d } = board
+  for (const text of change.add_todos ?? []) t = [...t, { id: nextId('t', t.map(x => x.id)), text, isDone: false }]
+  for (const text of change.open_decisions ?? []) d = [...d, { id: nextId('d', d.map(x => x.id)), text }]
+  const done = new Set(change.done_todos ?? [])
+  const removed = new Set(change.remove_todos ?? [])
+  const decided = new Set((change.decide ?? []).map(x => x.id))
+  t = t.filter(x => !removed.has(x.id)).map(x => (done.has(x.id) ? { ...x, isDone: true } : x))
+  d = d.filter(x => !decided.has(x.id))
+  return { todos: t, decisions: d }
+}
+
+export function describeBoard(board: Board): string {
+  if (board.todos.length + board.decisions.length === 0) return 'Pinboard is empty.'
+  return [
+    'Pinboard now:',
+    ...board.todos.map(t => `${t.id} [${t.isDone ? 'x' : ' '}] ${t.text}`),
+    ...board.decisions.map(d => `${d.id} [?] ${d.text}`),
+  ].join('\n')
+}
 
 const MAKES_COMMAND = /\bgh\s+(?:(?:pr|issue|release|repo|gist)\s+create|(?:pr|issue)\s+comment)\b|\bgit\s+push\b/
 const MAKES_MCP = /^mcp__.*(?:create|draft|send|publish|share|canvas|upload)/i
@@ -60,7 +82,7 @@ export const urlPins = (text: string): Pin[] =>
     })
 
 const isEmpty = async ($: EngineInterface) =>
-  (await read($, asks)).length + (await read($, todos)).length + (await read($, links)).length === 0
+  (await read($, decisions)).length + (await read($, todos)).length + (await read($, links)).length === 0
 
 // Runs a capture; opens the pane when it puts the first thing on an empty board
 async function capture($: EngineInterface, change: () => Promise<unknown>): Promise<void> {
@@ -72,6 +94,7 @@ async function capture($: EngineInterface, change: () => Promise<unknown>): Prom
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'pinboard', description: 'Open the pane of open decisions, todos and links', immediate: true })
+    await $.tool.register({ name: 'update', description: DESCRIPTION, inputSchema: SCHEMA })
     return next(e)
   })
 
@@ -80,9 +103,22 @@ export const register: Register = on => {
     return {}
   })
 
+  // The board rides at the end of the system prompt, so it never has to be repeated in replies
   on('prompt.compose', async ($, e, next) => {
     const { sections } = await next(e)
-    return { sections: [...sections, { id: 'pinboard:todos', text: FORMAT, scope: 'session' }] }
+    const board = describeBoard({ todos: await read($, todos), decisions: await read($, decisions) })
+    return { sections: [...sections, { id: 'pinboard:board', text: board, scope: 'session' }] }
+  })
+
+  on('tool.call', { tool: TOOL }, async ($, e) => {
+    if (e.agentId) return { deny: 'Only the main conversation updates the Pinboard.' }
+    let board: Board = { todos: [], decisions: [] }
+    await capture($, async () => {
+      board = applyUpdate({ todos: await read($, todos), decisions: await read($, decisions) }, e as Update)
+      await update($, todos, () => board.todos)
+      await update($, decisions, () => board.decisions)
+    })
+    return { result: describeBoard(board) }
   })
 
   // Links only from actions that make something; reads, fetches and test output just mention URLs
@@ -97,25 +133,29 @@ export const register: Register = on => {
     return ran
   })
 
-  on('turn.complete', async ($, e, next) => {
-    const done = await next(e)
-    if (e.agentId || e.isAborted) return done
-    await capture($, async () => {
-      // A reply that marks decisions lists every one still open; other replies leave them be
-      const open = decisionsIn(e.answer)
-      if (open) await update($, asks, () => open)
-      // A reply's checkbox list is the whole list: it replaces the last one
-      const fresh = todosIn(e.answer)
-      if (fresh.length > 0) await update($, todos, () => fresh)
-    })
-    return done
+  // An update is one dim line in the transcript; the board itself is in the pane
+  on('ui.render', { component: 'ToolUse', props: { tool: TOOL } }, async ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    const change = (e.props.input ?? {}) as Update
+    const parts = [
+      change.add_todos?.length && `+${change.add_todos.length} todo`,
+      change.done_todos?.length && `${change.done_todos.length} done`,
+      change.remove_todos?.length && `-${change.remove_todos.length} todo`,
+      change.open_decisions?.length && `+${change.open_decisions.length} decision`,
+      change.decide?.length && `${change.decide.length} decided`,
+    ].filter(Boolean)
+    return <Text dimColor>{'Pinboard: ' + (parts.join(', ') || 'no change')}</Text>
   })
+
+  on('ui.render', { component: 'ToolResult', props: { tool: TOOL } }, async ($, e, next) =>
+    e.props.isErrored ? next(e) : $.ui.resolve(e).Text({ children: [''] }),
+  )
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button, Link } = $.ui.resolve(e)
     // One cell of padding on every side
     const inner = Math.max(10, e.props.bodyColumns - 2)
-    const allAsks = await read($, asks)
+    const allDecisions = await read($, decisions)
     const allTodos = await read($, todos)
     const allLinks = await read($, links)
 
@@ -139,9 +179,9 @@ export const register: Register = on => {
 
     return (
       <Box flexDirection="column" width={inner + 2} padding={1}>
-        {header('Open decisions', allAsks.length ? String(allAsks.length) : '')}
-        {allAsks.length === 0 && empty('No open decisions.')}
-        {allAsks.map(q => item('?', q))}
+        {header('Open decisions', allDecisions.length ? String(allDecisions.length) : '')}
+        {allDecisions.length === 0 && empty('No open decisions.')}
+        {allDecisions.map(d => item('?', d.text))}
         <Text> </Text>
 
         {header('Todos', allTodos.length ? `${allTodos.filter(t => t.isDone).length}/${allTodos.length}` : '')}

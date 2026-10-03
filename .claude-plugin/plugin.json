@@ -1,0 +1,10 @@
+{
+  "name": "pinboard",
+  "displayName": "Pinboard",
+  "version": "0.1.0",
+  "description": "Pins the session's open questions, todos and created links in a sidebar pane",
+  "author": { "name": "Jerad Bitner" },
+  "license": "MIT",
+  "keywords": ["mod", "pane", "todos", "questions", "links"],
+  "types": "./types/index.d.ts"
+}

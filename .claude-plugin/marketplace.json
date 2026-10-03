@@ -1,0 +1,12 @@
+{
+  "name": "pinboard",
+  "description": "Pinboard, a Claude Code mod that keeps open questions, todos and links in a sidebar pane",
+  "owner": { "name": "Jerad Bitner" },
+  "plugins": [
+    {
+      "name": "pinboard",
+      "source": "./",
+      "description": "Pins the session's open questions, todos and created links in a sidebar pane"
+    }
+  ]
+}

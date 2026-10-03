@@ -95,6 +95,8 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'pinboard', description: 'Open the pane of open decisions, todos and links', immediate: true })
     await $.tool.register({ name: 'update', description: DESCRIPTION, inputSchema: SCHEMA })
+    // Todos parsed from replies by older versions have no id; the tool can't reach them
+    await update($, todos, old => old.filter(t => typeof t.id === 'string'))
     return next(e)
   })
 

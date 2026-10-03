@@ -35,6 +35,16 @@ describe('board', () => {
     expect(applyUpdate(board, { add_todos: ['Ship it'] }).todos.at(-1)?.id).toBe('t3')
   })
 
+  test('one todo is in progress at a time, and finishing it ends that', () => {
+    let board = applyUpdate({ todos: [], decisions: [] }, { add_todos: ['a', 'b'], start_todo: 't1' })
+    expect(board.todos.map(t => !!t.isActive)).toEqual([true, false])
+    board = applyUpdate(board, { start_todo: 't2' })
+    expect(board.todos.map(t => !!t.isActive)).toEqual([false, true])
+    board = applyUpdate(board, { done_todos: ['t2'] })
+    expect(board.todos.some(t => t.isActive)).toBe(false)
+    expect(describeBoard(applyUpdate(board, { start_todo: 't1' }))).toBe('Pinboard now:\nt1 [>] a\nt2 [x] b')
+  })
+
   test('the board reads back with ids', () => {
     expect(describeBoard({ todos: [], decisions: [] })).toBe('Pinboard is empty.')
     expect(describeBoard({ todos: [{ id: 't1', text: 'Write it', isDone: true }], decisions: [{ id: 'd1', text: 'Which owner?' }] })).toBe(
@@ -55,15 +65,19 @@ describe('session', () => {
   test('the tool updates the pane and the system prompt carries the board', async ($, on) => {
     on('ui.open', () => ({ value: { isPlaced: true } }))
     on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'hi', scope: 'shared' }] }))
-    const first = await $.tool.call({ tool: TOOL, add_todos: ['Write it', 'Test it'], open_decisions: ['Should I ship it?', 'Which owner?'] })
+    const first = await $.tool.call({ tool: TOOL, add_todos: ['Write it', 'Test it', 'Ship it'], open_decisions: ['Should I ship it?', 'Which owner?'] })
     expect('result' in first && first.result).toContain('d2 [?] Which owner?')
-    await $.tool.call({ tool: TOOL, done_todos: ['t1'], decide: [{ id: 'd1', answer: 'yes' }] })
+    await $.tool.call({ tool: TOOL, done_todos: ['t1'], start_todo: 't2', decide: [{ id: 'd1', answer: 'yes' }] })
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ ...PANE, surface })
       const all = await texts(ui)
-      expect(all).toContain('✓ Write it')
-      expect(all).toContain('○ Test it')
-      expect(all).toContain('1/2')
+      // Finished todos fold into one line; the active one is marked and colored
+      expect(all).toContain('✓ 1 done')
+      expect(all).not.toContain('Write it')
+      expect(all).toContain('▸ Test it')
+      expect((await ui.find({ type: 'Text', text: 'Test it' }))?.props.color).toBe('warning')
+      expect(all).toContain('○ Ship it')
+      expect(all).toContain('1/3')
       expect(all).toContain('? Which owner?')
       expect(all).not.toContain('Should I ship it?')
       // The bullet sits apart from wrapping text, so a second line indents under the text
@@ -71,7 +85,7 @@ describe('session', () => {
       await ui.unmount()
     }
     const { sections } = await $.prompt.compose({ model: 'm', promptModel: 'm', surfaces: [], tools: [], outputStyle: null, traits: [] })
-    expect(sections.at(-1)?.text).toBe('Pinboard now:\nt1 [x] Write it\nt2 [ ] Test it\nd2 [?] Which owner?')
+    expect(sections.at(-1)?.text).toBe('Pinboard now:\nt1 [x] Write it\nt2 [>] Test it\nt3 [ ] Ship it\nd2 [?] Which owner?')
   })
 
   test('the tool call shows as one dim line in the transcript', async $ => {

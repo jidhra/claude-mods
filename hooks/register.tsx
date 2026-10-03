@@ -11,18 +11,22 @@ const decisions = atom({ plugin: 'pinboard', key: 'decisions' } as const, [] as 
 const todos = atom({ plugin: 'pinboard', key: 'todos' } as const, [] as Todo[])
 const links = atom({ plugin: 'pinboard', key: 'links' } as const, [] as Pin[])
 
-const DESCRIPTION =
-  "Keep the session's task list and open decisions on the user's Pinboard, a sidebar that stays in view while the transcript scrolls. " +
-  'Use it in place of writing task lists or decision lists in your reply. ' +
-  'add_todos: one action per item. done_todos / remove_todos: todo ids. ' +
-  'open_decisions: questions that need the user to choose. decide: close a decision by id once the user has answered. ' +
-  'The current board, with ids, is at the end of your system prompt.'
+const DESCRIPTION = [
+  "Keep the session's task list and open decisions on the user's Pinboard, a sidebar that stays in view while the transcript scrolls.",
+  'Use it in place of writing task lists or decision lists in your reply, whenever the work takes 3+ distinct steps or the user gives new instructions.',
+  'add_todos: one action per item. start_todo: the todo id you are working on now; exactly one is in progress at a time. done_todos / remove_todos: todo ids.',
+  'Update in real time; do not batch completions. Mark a todo done only after the work is actually done, including any verification it needs, never based on intent.',
+  'If blocked or partly done, leave it in progress and add a follow-up todo describing the blocker.',
+  'open_decisions: questions that need the user to choose. decide: close a decision by id once the user has answered.',
+  'The current board, with ids, is at the end of your system prompt.',
+].join(' ')
 
 const strings = { type: 'array', items: { type: 'string' } }
 const SCHEMA = {
   type: 'object',
   properties: {
     add_todos: strings,
+    start_todo: { type: 'string' },
     done_todos: strings,
     remove_todos: strings,
     open_decisions: strings,
@@ -35,6 +39,7 @@ const SCHEMA = {
 
 export type Update = {
   add_todos?: string[]
+  start_todo?: string
   done_todos?: string[]
   remove_todos?: string[]
   open_decisions?: string[]
@@ -55,6 +60,9 @@ export function applyUpdate(board: Board, change: Update): Board {
   const removed = new Set(change.remove_todos ?? [])
   const decided = new Set((change.decide ?? []).map(x => x.id))
   t = t.filter(x => !removed.has(x.id)).map(x => (done.has(x.id) ? { ...x, isDone: true } : x))
+  // One todo in progress at a time; finishing it ends its turn too
+  if (change.start_todo) t = t.map(x => ({ ...x, isActive: x.id === change.start_todo }))
+  t = t.map(x => (x.isDone && x.isActive ? { ...x, isActive: false } : x))
   d = d.filter(x => !decided.has(x.id))
   return { todos: t, decisions: d }
 }
@@ -63,7 +71,7 @@ export function describeBoard(board: Board): string {
   if (board.todos.length + board.decisions.length === 0) return 'Pinboard is empty.'
   return [
     'Pinboard now:',
-    ...board.todos.map(t => `${t.id} [${t.isDone ? 'x' : ' '}] ${t.text}`),
+    ...board.todos.map(t => `${t.id} [${t.isDone ? 'x' : t.isActive ? '>' : ' '}] ${t.text}`),
     ...board.decisions.map(d => `${d.id} [?] ${d.text}`),
   ].join('\n')
 }
@@ -141,6 +149,7 @@ export const register: Register = on => {
     const change = (e.props.input ?? {}) as Update
     const parts = [
       change.add_todos?.length && `+${change.add_todos.length} todo`,
+      change.start_todo && `started ${change.start_todo}`,
       change.done_todos?.length && `${change.done_todos.length} done`,
       change.remove_todos?.length && `-${change.remove_todos.length} todo`,
       change.open_decisions?.length && `+${change.open_decisions.length} decision`,
@@ -160,6 +169,7 @@ export const register: Register = on => {
     const allDecisions = await read($, decisions)
     const allTodos = await read($, todos)
     const allLinks = await read($, links)
+    const doneCount = allTodos.filter(t => t.isDone).length
 
     const header = (title: string, count: string) => (
       <Text bold>
@@ -168,11 +178,11 @@ export const register: Register = on => {
     )
     const empty = (text: string) => <Text dimColor>  {text}</Text>
     // The bullet stays in its own column, so wrapped lines indent under the text
-    const item = (bullet: string, text: string, isDim = false) => (
+    const item = (bullet: string, text: string, isDim = false, color?: string) => (
       <Box flexDirection="row" width={inner}>
-        <Text dimColor={isDim}>{'  ' + bullet + ' '}</Text>
+        <Text dimColor={isDim} color={color}>{'  ' + bullet + ' '}</Text>
         <Box flexShrink={1} flexGrow={1}>
-          <Text dimColor={isDim} wrap="wrap">
+          <Text dimColor={isDim} color={color} wrap="wrap">
             {text}
           </Text>
         </Box>
@@ -186,9 +196,11 @@ export const register: Register = on => {
         {allDecisions.map(d => item('?', d.text))}
         <Text> </Text>
 
-        {header('Todos', allTodos.length ? `${allTodos.filter(t => t.isDone).length}/${allTodos.length}` : '')}
+        {header('Todos', allTodos.length ? `${doneCount}/${allTodos.length}` : '')}
         {allTodos.length === 0 && empty('No todos yet.')}
-        {allTodos.map(t => item(t.isDone ? '✓' : '○', t.text, t.isDone))}
+        {allTodos.filter(t => !t.isDone).map(t => (t.isActive ? item('▸', t.text, false, 'warning') : item('○', t.text)))}
+        {/* Finished todos fold into one line so open work stays on top */}
+        {doneCount > 0 && <Text dimColor>{`  ✓ ${doneCount} done`}</Text>}
         <Text> </Text>
 
         <Box flexDirection="row" justifyContent="space-between" width={inner}>

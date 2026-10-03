@@ -46,6 +46,9 @@ export const todosIn = (text: string): Todo[] =>
     return m ? [{ text: clean(m[2] ?? ''), isDone: m[1] !== ' ' }] : []
   })
 
+const MAKES_COMMAND = /\bgh\s+(?:(?:pr|issue|release|repo|gist)\s+create|(?:pr|issue)\s+comment)\b|\bgit\s+push\b/
+const MAKES_MCP = /^mcp__.*(?:create|draft|send|publish|share|canvas|upload)/i
+
 const URL = /https:\/\/[A-Za-z0-9.-]+(?::\d+)?(?:\/[A-Za-z0-9\-._~:/?#[\]!$&'()*+,;=%@]*)?/g
 
 export const urlPins = (text: string): Pin[] =>
@@ -82,10 +85,11 @@ export const register: Register = on => {
     return { sections: [...sections, { id: 'pinboard:todos', text: FORMAT, scope: 'session' }] }
   })
 
-  // A tool result with a few links made or touched them; a long list is a listing
+  // Links only from actions that make something; reads, fetches and test output just mention URLs
   on('tool.call', async ($, e, next) => {
     const ran = await next(e)
-    if (e.agentId || !('text' in ran) || ran.isError) return ran
+    const makes = e.tool === 'Bash' ? MAKES_COMMAND.test(e.command) : MAKES_MCP.test(e.tool)
+    if (e.agentId || !makes || !('text' in ran) || ran.isError) return ran
     const found = urlPins(ran.text ?? '')
     if (found.length > 0 && found.length <= 3) {
       await capture($, () => update($, links, old => [...found, ...old.filter(p => !found.some(f => f.href === p.href))].slice(0, 12)))

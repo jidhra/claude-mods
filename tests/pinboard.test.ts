@@ -89,13 +89,18 @@ describe('pane', () => {
     expect(all).not.toContain('Test it')
   })
 
-  test('links from a tool result are pinned and clear empties them', async ($, on) => {
+  test('links come only from actions that make something, and clear empties them', async ($, on) => {
     on('ui.open', () => ({ value: { isPlaced: true } }))
-    on('tool.call', { tool: 'Bash' }, () => ({
-      result: { stdout: 'https://github.com/o/repo/pull/12\n', stderr: '', interrupted: false },
-      text: 'https://github.com/o/repo/pull/12\n',
-    }))
+    on('tool.call', { tool: 'Bash' }, (_$, e) => {
+      const url = e.command.startsWith('gh') ? 'https://github.com/o/repo/pull/12' : 'https://github.com/o/fixture/pull/99'
+      return { result: { stdout: url + '\n', stderr: '', interrupted: false }, text: url + '\n' }
+    })
+    // A command that only prints a URL is not pinned
+    await $.tool.call({ tool: 'Bash', command: 'cat tests/fixtures.ts' })
     await $.tool.call({ tool: 'Bash', command: 'gh pr create --fill' })
+    const first = await $.ui.mount({ ...PANE, surface: 'terminal' })
+    expect(await first.findAll({ type: 'Link' })).toHaveLength(1)
+    await first.unmount()
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ ...PANE, surface })
       expect((await ui.find({ type: 'Link' }))?.props.label).toBe('repo PR #12')

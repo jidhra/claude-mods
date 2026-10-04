@@ -1,10 +1,19 @@
+<div align="center">
+
 # Pinboard
 
-[![reach](https://raw.githubusercontent.com/karanb192/awesome-claude-code-mods/main/badges/sirkitree--pinboard--pinboard-reach.svg)](https://mods.aidojo.si/#sirkitree--pinboard--pinboard) [![validates](https://raw.githubusercontent.com/karanb192/awesome-claude-code-mods/main/badges/sirkitree--pinboard--pinboard-validates.svg)](https://mods.aidojo.si/#sirkitree--pinboard--pinboard)
+**What needs you, pinned where you can see it.**<br>
+Open decisions, the task list and the links Claude creates stay in a pane beside the conversation, so they don't scroll out of view.
 
-A Claude Code mod that keeps the things you need to act on in a sidebar pane, so they don't scroll out of view in the transcript.
+[![Version](https://img.shields.io/badge/version-0.1.0-d77757.svg)](.claude-plugin/plugin.json)
+[![Claude Code mod](https://img.shields.io/badge/Claude%20Code-mod-c678dd.svg)](https://code.claude.com/docs/en/plugins/mods/overview)
+[![Claude Code 2.1.287+](https://img.shields.io/badge/Claude%20Code-2.1.287%2B-4a4a4a.svg)](#install)
+[![Catalogue](https://img.shields.io/badge/awesome--claude--code--mods-validates-4a4a4a.svg)](https://mods.aidojo.si/#sirkitree--pinboard--pinboard)
+[![License: MIT](https://img.shields.io/badge/license-MIT-4eba65.svg)](LICENSE)
 
-![Pinboard pane beside a Claude Code session, with one open decision and two of four todos done](docs/board-in-progress.png)
+<img src="docs/board-in-progress.png" alt="Pinboard pane beside a Claude Code session, with one open decision and two of four todos done" width="820">
+
+</div>
 
 The story of how it came together: [Pinboard: a Claude Code mod](https://jeradbitner.com/blog/pinboard-claude-code-mod).
 

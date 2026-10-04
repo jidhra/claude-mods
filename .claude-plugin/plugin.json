@@ -2,11 +2,11 @@
   "name": "pinboard",
   "displayName": "Pinboard",
   "version": "0.1.0",
-  "description": "Pins the session's open questions, todos and created links in a sidebar pane",
+  "description": "Keeps open decisions, the task list and links Claude creates in a sidebar pane, updated through its own tool",
   "author": { "name": "Jerad Bitner" },
   "homepage": "https://github.com/sirkitree/pinboard",
   "repository": "https://github.com/sirkitree/pinboard",
   "license": "MIT",
-  "keywords": ["mod", "pane", "todos", "questions", "links"],
+  "keywords": ["claude-code-mod", "pane", "todos", "decisions", "links"],
   "types": "./types/index.d.ts"
 }

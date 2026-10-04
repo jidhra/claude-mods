@@ -1,5 +1,7 @@
 # Pinboard
 
+[![reach](https://raw.githubusercontent.com/karanb192/awesome-claude-code-mods/main/badges/sirkitree--pinboard--pinboard-reach.svg)](https://mods.aidojo.si/#sirkitree--pinboard--pinboard) [![validates](https://raw.githubusercontent.com/karanb192/awesome-claude-code-mods/main/badges/sirkitree--pinboard--pinboard-validates.svg)](https://mods.aidojo.si/#sirkitree--pinboard--pinboard)
+
 A Claude Code mod that keeps the things you need to act on in a sidebar pane, so they don't scroll out of view in the transcript.
 
 ![Pinboard pane beside a Claude Code session, with one open decision and two of four todos done](docs/board-in-progress.png)

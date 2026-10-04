@@ -1,12 +1,12 @@
 {
   "name": "pinboard",
-  "description": "Pinboard, a Claude Code mod that keeps open questions, todos and links in a sidebar pane",
+  "description": "Pinboard, a Claude Code mod that keeps open decisions, todos and links in a sidebar pane",
   "owner": { "name": "Jerad Bitner" },
   "plugins": [
     {
       "name": "pinboard",
       "source": "./",
-      "description": "Pins the session's open questions, todos and created links in a sidebar pane"
+      "description": "Keeps open decisions, the task list and links Claude creates in a sidebar pane, updated through its own tool"
     }
   ]
 }

@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { ConfigRow, On } from 'claude-code'
 
-import { effortFor, modelFor } from '../hooks/jidhras-tools'
+import { EFFORTS, MODELS, effortFor, helperCaption, modelFor } from '../hooks/jidhras-tools'
 
 const SURFACES = ['terminal', 'desktop'] as const
 
@@ -204,19 +204,19 @@ test('the panel stacks above whatever else draws in the band', async ($, on) => 
   await band.unmount()
 })
 
-test('LAUNCH and SETTINGS headings match, each with a blank line above and below', async ($, on) => {
+test('SETTINGS and LAUNCH headings match, each with a blank line above and below', async ($, on) => {
   await start($, on)
   await openPanel($, 'terminal')
 
   const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  for (const label of ['L A U N C H', 'S E T T I N G S']) {
+  for (const label of ['S E T T I N G S', 'L A U N C H']) {
     const heading = await band.find({ key: `heading:${label}` })
     expect(heading?.props.marginTop).toBe(1)
     expect(heading?.props.marginBottom).toBe(1)
     expect(heading?.props.paddingLeft).toBe(2)
   }
   const texts = (await band.findAll({ type: 'Text' })).map(found => found.text)
-  expect(texts.indexOf('L A U N C H')).toBeLessThan(texts.indexOf('S E T T I N G S'))
+  expect(texts.indexOf('S E T T I N G S')).toBeLessThan(texts.indexOf('L A U N C H'))
   await band.unmount()
 })
 
@@ -241,4 +241,36 @@ test('with Agent Dock installed, Open runs /dock', async ($, on) => {
   expect(runs).toContainEqual({ command: 'dock', args: '' })
   expect(await band.find({ text: 'not installed' })).toBeUndefined()
   await band.unmount()
+})
+
+test('with Agent Dock installed, SETTINGS has a Helpers toggle that runs /dock helpers', async ($, on) => {
+  const { runs } = await start($, on, undefined, undefined, ['dock'])
+  await openPanel($, 'terminal')
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  const texts = (await band.findAll({ type: 'Text' })).map(found => found.text)
+  expect(texts.indexOf('Helpers')).toBeGreaterThan(texts.indexOf('S E T T I N G S'))
+  expect(texts.indexOf('Helpers')).toBeLessThan(texts.indexOf('L A U N C H'))
+  expect(texts).toContain('Helpers run on Opus 5.5 · high effort')
+
+  await band.press({ key: 'helpers:fast' })
+  expect(runs).toContainEqual({ command: 'dock', args: 'helpers fast' })
+  await band.unmount()
+})
+
+test('without Agent Dock there is no Helpers toggle', async ($, on) => {
+  await start($, on)
+  await openPanel($, 'terminal')
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await band.find({ text: 'Helpers' })).toBeUndefined()
+  await band.unmount()
+})
+
+test('the Helpers caption names the model helpers get', async () => {
+  const opus = MODELS.find(model => model.family === 'opus')!
+  const high = EFFORTS.find(effort => effort.value === 'high')!
+  expect(helperCaption('fast', opus, high)).toBe('Helpers run on Haiku 4.5 · no effort setting')
+  expect(helperCaption('stepDown', opus, high)).toBe('Helpers run on Sonnet 5.5 · effort inherited')
+  expect(helperCaption('same', opus, high)).toBe('Helpers run on Opus 5.5 · high effort')
 })

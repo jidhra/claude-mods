@@ -9,21 +9,24 @@ A Claude Code mod that puts a **◆ Jidhra's Tools ▾** button at the bottom ri
 │ MODEL   Haiku 4.5  Sonnet 5.5 [Opus 5.5] Fable 5.1           │
 │ EFFORT  Low  Medium [High] XHigh  Max                        │
 │                                                              │
-│   L A U N C H                                                │
-│                                                              │
-│ ◆ Agent Dock  split requests across helpers           Open   │
-│                                                              │
 │   S E T T I N G S                                            │
 │                                                              │
 │ ● Clean View  simple checklist                        ● On   │
+│ ◆ Helpers [Fast & Cheap] Same as me  One step down           │
+│   Helpers run on Haiku 4.5 · no effort setting               │
+│                                                              │
+│   L A U N C H                                                │
+│                                                              │
+│ ◆ Agent Dock  split requests across helpers           Open   │
 ╰──────────────────────────────────────────────────────────────╯
 ──────────────────────────────────────── Jidhra's Control Panel ─
 ```
 
 - **Model**: click a model to switch to it (runs `/model` with its full ID; Opus keeps the 1M context window).
 - **Effort**: click a level to set it (runs `/effort`). Haiku doesn't use effort, so the row says so.
-- **Agent Dock** (under Launch): opens the Agent Dock pane (runs `/dock`). If Agent Dock isn't installed, the row says so.
 - **Clean View**: turns the [Clean View](https://github.com/jidhra/clean-view) mod on or off (runs `/simple on|off`). If Clean View isn't installed, the row says so.
+- **Helpers** (under Settings, when Agent Dock is installed): picks the model Agent Dock's helpers run on: Fast & Cheap (Haiku), Same as me, or One step down (runs `/dock helpers fast|same|stepdown`). Helpers keep your effort level; the caption says which model and effort they get.
+- **Agent Dock** (under Launch): opens the Agent Dock pane (runs `/dock`). If Agent Dock isn't installed, the row says so.
 
 Colors come from your Claude Code theme, so the panel follows whatever theme you've picked in `/config`.
 

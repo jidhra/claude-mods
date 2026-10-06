@@ -1,6 +1,6 @@
 {
   "name": "jidhras-tools",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "A Jidhra's Tools button in the prompt footer that opens a panel for picking the model, the effort and whether Clean View is on.",
   "types": "./types/index.d.ts",
   "dependencies": [

@@ -44,6 +44,42 @@ const effortAtom = atom({ plugin: 'jidhras-tools', key: 'effort' } as const, nul
 const hasCleanViewAtom = atom({ plugin: 'jidhras-tools', key: 'hasCleanView' } as const, false)
 const hasAgentDockAtom = atom({ plugin: 'jidhras-tools', key: 'hasAgentDock' } as const, false)
 const cleanViewAtom = atom({ plugin: 'clean-view', key: 'cleanViewEnabled' } as const, true)
+const helperModelAtom = atom({ plugin: 'clean-view', key: 'dockHelperModel' } as const, 'same')
+
+type HelperChoice = { value: 'fast' | 'same' | 'stepDown'; label: string; arg: string }
+
+/** Agent Dock's Helpers toggle: which model its helpers run on. */
+export const HELPERS: readonly HelperChoice[] = [
+  { value: 'fast', label: 'Fast & Cheap', arg: 'fast' },
+  { value: 'same', label: 'Same as me', arg: 'same' },
+  { value: 'stepDown', label: 'One step down', arg: 'stepdown' },
+]
+
+/** The model helpers get under a Helpers choice; MODELS runs lowest first, so one step down is one place left. */
+export function helperModel(choice: string, model: ModelChoice | null): ModelChoice | null {
+  if (choice === 'fast') {
+    return MODELS[0]!
+  }
+  if (model === null || choice === 'same') {
+    return model
+  }
+
+  return MODELS[Math.max(0, MODELS.indexOf(model) - 1)]!
+}
+
+/** Agent Dock sets each helper's model; helpers keep the session's effort, so the caption says so. */
+export function helperCaption(choice: string, model: ModelChoice | null, effort: EffortChoice | null): string {
+  const helper = helperModel(choice, model)
+  const name = helper?.label ?? 'your model'
+  if (helper !== null && !helper.hasEffort) {
+    return `Helpers run on ${name} · no effort setting`
+  }
+  if (choice === 'same') {
+    return `Helpers run on ${name} · ${effort?.label.toLowerCase() ?? 'your'} effort`
+  }
+
+  return `Helpers run on ${name} · effort inherited`
+}
 
 /** Finds which offered model a model name (an id, an alias, a /config value) is. */
 export function modelFor(name: string | null): ModelChoice | null {
@@ -152,6 +188,11 @@ async function setCleanView($: Engine, isOn: boolean) {
   await $.command.run({ command: 'simple', args: isOn ? 'on' : 'off' })
 }
 
+async function chooseHelpers($: Engine, choice: HelperChoice) {
+  await $.command.run({ command: 'dock', args: `helpers ${choice.arg}` })
+  $.ui.toast(`Helpers: ${choice.label}`)
+}
+
 async function openAgentDock($: Engine) {
   await $.command.run({ command: 'dock', args: '' })
 }
@@ -232,8 +273,9 @@ export function registerJidhrasTools(on: On) {
     const hasCleanView = await read($, hasCleanViewAtom)
     const isCleanViewOn = hasCleanView && (await read($, cleanViewAtom))
     const hasAgentDock = await read($, hasAgentDockAtom)
+    const helpers = hasAgentDock ? await read($, helperModelAtom) : 'same'
 
-    // LAUNCH and SETTINGS share one look: dim, letter-spaced, a blank line above and below.
+    // SETTINGS and LAUNCH share one look: dim, letter-spaced, a blank line above and below.
     const sectionHeading = (label: string) => (
       <Box key={`heading:${label}`} marginTop={1} marginBottom={1} paddingLeft={2}>
         <Text dimColor>{label}</Text>
@@ -308,6 +350,41 @@ export function registerJidhrasTools(on: On) {
             </Box>
           </Box>
 
+          {sectionHeading('S E T T I N G S')}
+          <Box flexDirection="row" justifyContent="space-between" gap={2}>
+            <Box flexDirection="row" gap={1} flexShrink={1}>
+              <Text color={isCleanViewOn ? 'success' : 'inactive'}>{isCleanViewOn ? '●' : '○'}</Text>
+              <Text bold>Clean View</Text>
+              <Text dimColor wrap="truncate-end">
+                simple checklist
+              </Text>
+            </Box>
+            {cleanViewControl}
+          </Box>
+
+          {hasAgentDock && (
+            <Box key="helpers" flexDirection="column" marginTop={1}>
+              <Box flexDirection="row" flexWrap="wrap" gap={1}>
+                <Text color="claude">◆</Text>
+                <Text bold>Helpers</Text>
+                {HELPERS.map(choice =>
+                  choice.value === helpers ? (
+                    <Text key={`helpers:${choice.value}`} backgroundColor="claude" color="inverseText" bold>
+                      {` ${choice.label} `}
+                    </Text>
+                  ) : (
+                    <Button key={`helpers:${choice.value}`} plain label={` ${choice.label} `} onPress={() => chooseHelpers($, choice)} />
+                  ),
+                )}
+              </Box>
+              <Box paddingLeft={2}>
+                <Text dimColor wrap="truncate-end">
+                  {helperCaption(helpers, model, effort)}
+                </Text>
+              </Box>
+            </Box>
+          )}
+
           {sectionHeading('L A U N C H')}
           <Box flexDirection="row" justifyContent="space-between" gap={2}>
             <Box flexDirection="row" gap={1} flexShrink={1}>
@@ -322,18 +399,6 @@ export function registerJidhrasTools(on: On) {
             ) : (
               <Text dimColor>not installed</Text>
             )}
-          </Box>
-
-          {sectionHeading('S E T T I N G S')}
-          <Box flexDirection="row" justifyContent="space-between" gap={2}>
-            <Box flexDirection="row" gap={1} flexShrink={1}>
-              <Text color={isCleanViewOn ? 'success' : 'inactive'}>{isCleanViewOn ? '●' : '○'}</Text>
-              <Text bold>Clean View</Text>
-              <Text dimColor wrap="truncate-end">
-                simple checklist
-              </Text>
-            </Box>
-            {cleanViewControl}
           </Box>
         </Box>
         <Text dimColor wrap="truncate-end">

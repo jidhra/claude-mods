@@ -739,128 +739,141 @@ export function registerCleanView(on: On) {
       return next(e)
     }
 
-    const { Box, Text, Button } = $.ui.resolve(e)
-    const isOn = await read($, enabledAtom)
-    const list = isOn ? await read($, checklistAtom) : null
-    const tick = list !== null && isTicking(list.phase) ? await read($, tickAtom) : 0
-    const columns = Math.max(24, e.props.bodyColumns)
-
-    const toggle = (
-      <Button
-        key={TOGGLE_KEY}
-        label={isOn ? '● Clean View: ON' : '○ Clean View: OFF'}
-        variant={isOn ? 'primary' : 'secondary'}
-        onPress={() => setEnabled($, !isOn)}
-      />
-    )
-
-    if (list === null) {
-      return (
-        <Box flexDirection="row" justifyContent="flex-end" width={columns}>
-          {toggle}
-        </Box>
-      )
-    }
-
-    const now = await $.clock.now()
-    const elapsed = formatDuration((list.finishedAt ?? now) - list.startedAt)
-    const isPaused = list.phase !== 'working'
-
-    let header
-    if (list.phase === 'needsYou') {
-      header = (
-        <Box flexDirection="row" flexGrow={1} flexShrink={1} gap={1}>
-          <Text backgroundColor="warning" color="inverseText" bold>
-            {' Needs you '}
-          </Text>
-          <Text wrap="truncate-end">{list.needsYouReason ?? NEEDS_REPLY}</Text>
-        </Box>
-      )
-    } else if (list.phase === 'stuck') {
-      header = (
-        <Text color="warning" wrap="truncate-end">
-          ⚠ Stuck: {list.stuckReason ?? STUCK_FAILING}
-        </Text>
-      )
-    } else if (list.phase === 'stopped') {
-      header = (
-        <Text wrap="truncate-end">
-          ■ Stopped · {list.title} · you pressed Esc
-        </Text>
-      )
-    } else if (list.phase === 'done') {
-      header = (
-        <Text color="success" wrap="truncate-end">
-          ✓ All done · {list.title} · took {elapsed}
-        </Text>
-      )
-    } else {
-      header = (
-        <Text wrap="truncate-end">
-          <Text bold>{list.title}</Text> · {elapsed}
-        </Text>
-      )
-    }
-
-    const headerRow = (
-      <Box key="header" flexDirection="row" justifyContent="space-between" width={columns}>
-        <Box flexGrow={1} flexShrink={1}>
-          {header}
-        </Box>
-        {toggle}
-      </Box>
-    )
-
-    if (list.phase === 'done' && list.isCollapsed) {
-      return headerRow
-    }
-
-    const nameColumn = Math.max(6, Math.min(MAX_NAME, columns - 2 - 1 - METER_CELLS - 1 - LABEL_CELLS - 1))
-    let upcomingSeen = 0
-
-    const rows = list.tasks.map(task => {
-      const upcomingIndex = task.status === 'upcoming' ? upcomingSeen++ : -1
-      const name = fitName(task.name, nameColumn).padEnd(nameColumn)
-      const bar = meter(task, tick, isPaused)
-      const label = rowLabel(task, upcomingIndex, list.phase === 'needsYou' || list.phase === 'stuck')
-
-      if (task.status === 'done') {
-        return (
-          <Box key={`row-${task.id}`} flexDirection="row">
-            <Text color="success">✓ </Text>
-            <Text dimColor>{name} </Text>
-            <Text color="success">{bar}</Text>
-            <Text dimColor> {label}</Text>
-          </Box>
-        )
-      }
-
-      if (task.status === 'active') {
-        return (
-          <Box key={`row-${task.id}`} flexDirection="row">
-            <Text color={list.phase === 'needsYou' ? 'warning' : 'claude'}>{list.phase === 'needsYou' ? '‖ ' : '▶ '}</Text>
-            <Text bold>{name} </Text>
-            <Text color="claude">{bar}</Text>
-            <Text> {label}</Text>
-          </Box>
-        )
-      }
-
-      return (
-        <Box key={`row-${task.id}`} flexDirection="row">
-          <Text dimColor>○ </Text>
-          <Text dimColor>{name} </Text>
-          <Text dimColor>{bar}</Text>
-          <Text dimColor> {label}</Text>
-        </Box>
-      )
-    })
+    const { Box } = $.ui.resolve(e)
+    const above = await next(e)
 
     return (
-      <Box flexDirection="column" width={columns}>
-        {headerRow}
-        {rows}
+      <Box flexDirection="column">
+        {above}
+        {await drawBand($, e)}
       </Box>
     )
   })
+}
+
+/** Draws the toggle and the checklist; another plugin's band, if any, stacks above it. */
+async function drawBand($: Engine, e: RenderInput<'AbovePrompt'>): Promise<RenderElement> {
+  const { Box, Text, Button } = $.ui.resolve(e)
+  const isOn = await read($, enabledAtom)
+  const list = isOn ? await read($, checklistAtom) : null
+  const tick = list !== null && isTicking(list.phase) ? await read($, tickAtom) : 0
+  const columns = Math.max(24, e.props.bodyColumns)
+
+  const toggle = (
+    <Button
+      key={TOGGLE_KEY}
+      label={isOn ? '● Clean View: ON' : '○ Clean View: OFF'}
+      variant={isOn ? 'primary' : 'secondary'}
+      onPress={() => setEnabled($, !isOn)}
+    />
+  )
+
+  if (list === null) {
+    return (
+      <Box flexDirection="row" justifyContent="flex-end" width={columns}>
+        {toggle}
+      </Box>
+    )
+  }
+
+  const now = await $.clock.now()
+  const elapsed = formatDuration((list.finishedAt ?? now) - list.startedAt)
+  const isPaused = list.phase !== 'working'
+
+  let header
+  if (list.phase === 'needsYou') {
+    header = (
+      <Box flexDirection="row" flexGrow={1} flexShrink={1} gap={1}>
+        <Text backgroundColor="warning" color="inverseText" bold>
+          {' Needs you '}
+        </Text>
+        <Text wrap="truncate-end">{list.needsYouReason ?? NEEDS_REPLY}</Text>
+      </Box>
+    )
+  } else if (list.phase === 'stuck') {
+    header = (
+      <Text color="warning" wrap="truncate-end">
+        ⚠ Stuck: {list.stuckReason ?? STUCK_FAILING}
+      </Text>
+    )
+  } else if (list.phase === 'stopped') {
+    header = (
+      <Text wrap="truncate-end">
+        ■ Stopped · {list.title} · you pressed Esc
+      </Text>
+    )
+  } else if (list.phase === 'done') {
+    header = (
+      <Text color="success" wrap="truncate-end">
+        ✓ All done · {list.title} · took {elapsed}
+      </Text>
+    )
+  } else {
+    header = (
+      <Text wrap="truncate-end">
+        <Text bold>{list.title}</Text> · {elapsed}
+      </Text>
+    )
+  }
+
+  const headerRow = (
+    <Box key="header" flexDirection="row" justifyContent="space-between" width={columns}>
+      <Box flexGrow={1} flexShrink={1}>
+        {header}
+      </Box>
+      {toggle}
+    </Box>
+  )
+
+  if (list.phase === 'done' && list.isCollapsed) {
+    return headerRow
+  }
+
+  const nameColumn = Math.max(6, Math.min(MAX_NAME, columns - 2 - 1 - METER_CELLS - 1 - LABEL_CELLS - 1))
+  let upcomingSeen = 0
+
+  const rows = list.tasks.map(task => {
+    const upcomingIndex = task.status === 'upcoming' ? upcomingSeen++ : -1
+    const name = fitName(task.name, nameColumn).padEnd(nameColumn)
+    const bar = meter(task, tick, isPaused)
+    const label = rowLabel(task, upcomingIndex, list.phase === 'needsYou' || list.phase === 'stuck')
+
+    if (task.status === 'done') {
+      return (
+        <Box key={`row-${task.id}`} flexDirection="row">
+          <Text color="success">✓ </Text>
+          <Text dimColor>{name} </Text>
+          <Text color="success">{bar}</Text>
+          <Text dimColor> {label}</Text>
+        </Box>
+      )
+    }
+
+    if (task.status === 'active') {
+      return (
+        <Box key={`row-${task.id}`} flexDirection="row">
+          <Text color={list.phase === 'needsYou' ? 'warning' : 'claude'}>{list.phase === 'needsYou' ? '‖ ' : '▶ '}</Text>
+          <Text bold>{name} </Text>
+          <Text color="claude">{bar}</Text>
+          <Text> {label}</Text>
+        </Box>
+      )
+    }
+
+    return (
+      <Box key={`row-${task.id}`} flexDirection="row">
+        <Text dimColor>○ </Text>
+        <Text dimColor>{name} </Text>
+        <Text dimColor>{bar}</Text>
+        <Text dimColor> {label}</Text>
+      </Box>
+    )
+  })
+
+  return (
+    <Box flexDirection="column" width={columns}>
+      {headerRow}
+      {rows}
+    </Box>
+  )
 }

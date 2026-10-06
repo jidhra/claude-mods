@@ -21,9 +21,14 @@ const BAND = {
 } as const
 
 /** Starts a session with a mocked clock and store, and answers every other tool with "ok". */
-async function start($: Engine, on: On) {
+async function start($: Engine, on: On, above?: string) {
   mock.clock(on, { now: 1_000_000 })
   mock.store(on)
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e) => {
+    const { Box, Text } = $.ui.resolve(e)
+
+    return above === undefined ? <Box /> : <Text>{above}</Text>
+  })
   on('tool.call', async () => ({ result: 'ok' }))
   on('tool.register', async (_$, e) => ({ value: { tool: `mcp__clean-view__${e.name}` } }))
   on('command.register', async (_$, e) => ({ value: { command: e.name } }))
@@ -164,4 +169,16 @@ test('every tool is refused until a plan exists, then allowed', async ($, on) =>
   const after = await $.tool.call({ tool: 'Read', file_path: '/tmp/notes.md' })
   expect(after.deny).toBeUndefined()
   expect(after.result).toBe('ok')
+})
+
+test("another plugin's band stacks above the checklist", async ($, on) => {
+  await start($, on, 'another panel')
+  await newJob($)
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const texts = await bandTexts($, surface)
+    const other = texts.indexOf('another panel')
+    expect(other).toBeGreaterThanOrEqual(0)
+    expect(texts.findIndex(text => /Your request/.test(text))).toBeGreaterThan(other)
+  }
 })

@@ -816,6 +816,15 @@ async function drawBand($: Engine, e: RenderInput<'AbovePrompt'>): Promise<Rende
     )
   }
 
+  // A blank row and a rule set the checklist apart from the transcript above it.
+  const divider = (
+    <Box key="divider" marginTop={1}>
+      <Text dimColor wrap="truncate-end">
+        {'─'.repeat(columns)}
+      </Text>
+    </Box>
+  )
+
   const headerRow = (
     <Box key="header" flexDirection="row" justifyContent="space-between" width={columns}>
       <Box flexGrow={1} flexShrink={1}>
@@ -826,7 +835,12 @@ async function drawBand($: Engine, e: RenderInput<'AbovePrompt'>): Promise<Rende
   )
 
   if (list.phase === 'done' && list.isCollapsed) {
-    return headerRow
+    return (
+      <Box flexDirection="column" width={columns}>
+        {divider}
+        {headerRow}
+      </Box>
+    )
   }
 
   const nameColumn = Math.max(6, Math.min(MAX_NAME, columns - 2 - 1 - METER_CELLS - 1 - LABEL_CELLS - 1))
@@ -872,6 +886,7 @@ async function drawBand($: Engine, e: RenderInput<'AbovePrompt'>): Promise<Rende
 
   return (
     <Box flexDirection="column" width={columns}>
+      {divider}
       {headerRow}
       {rows}
     </Box>

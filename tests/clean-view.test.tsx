@@ -182,3 +182,15 @@ test("another plugin's band stacks above the checklist", async ($, on) => {
     expect(texts.findIndex(text => /Your request/.test(text))).toBeGreaterThan(other)
   }
 })
+
+test('a rule sits above the checklist header', async ($, on) => {
+  await start($, on)
+  await newJob($)
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const texts = await bandTexts($, surface)
+    const rule = texts.findIndex(text => /^─+$/.test(text))
+    expect(rule).toBeGreaterThanOrEqual(0)
+    expect(texts.findIndex(text => /Your request/.test(text))).toBeGreaterThan(rule)
+  }
+})

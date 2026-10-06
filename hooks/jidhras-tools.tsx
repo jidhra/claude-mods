@@ -315,8 +315,9 @@ export function registerJidhrasTools(on: On) {
       </Box>
     )
 
+    // No size props on this wrapper: the engine refuses its own band node under a sized Box.
     return (
-      <Box flexDirection="column" width={width}>
+      <Box flexDirection="column">
         {panel}
         {below}
       </Box>

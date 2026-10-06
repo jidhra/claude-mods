@@ -43,6 +43,7 @@ async function start(
   on: On,
   rows: ConfigRow[] = [row('model', 'Model', 'Opus 5.5'), row('effortLevel', 'Effort', 'high')],
   below?: string,
+  extraCommands: string[] = [],
 ) {
   const runs: Runs = []
   const sets: Sets = []
@@ -50,7 +51,10 @@ async function start(
   mock.store(on)
   on('command.register', async (_$, e) => ({ value: { command: e.name } }))
   on('command.list', async () => ({
-    value: [{ name: 'simple', description: 'Clean View', source: 'plugin' as const, plugin: 'clean-view' }],
+    value: [
+      { name: 'simple', description: 'Clean View', source: 'plugin' as const, plugin: 'clean-view' },
+      ...extraCommands.map(name => ({ name, description: name, source: 'plugin' as const, plugin: 'clean-view' })),
+    ],
   }))
   on('command.run', async (_$, e) => {
     runs.push({ command: e.command, args: e.args })
@@ -197,5 +201,44 @@ test('the panel stacks above whatever else draws in the band', async ($, on) => 
   const below = texts.indexOf('checklist below')
   expect(title).toBeGreaterThanOrEqual(0)
   expect(below).toBeGreaterThan(title)
+  await band.unmount()
+})
+
+test('LAUNCH and SETTINGS headings match, each with a blank line above and below', async ($, on) => {
+  await start($, on)
+  await openPanel($, 'terminal')
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  for (const label of ['L A U N C H', 'S E T T I N G S']) {
+    const heading = await band.find({ key: `heading:${label}` })
+    expect(heading?.props.marginTop).toBe(1)
+    expect(heading?.props.marginBottom).toBe(1)
+    expect(heading?.props.paddingLeft).toBe(2)
+  }
+  const texts = (await band.findAll({ type: 'Text' })).map(found => found.text)
+  expect(texts.indexOf('L A U N C H')).toBeLessThan(texts.indexOf('S E T T I N G S'))
+  await band.unmount()
+})
+
+test('LAUNCH lists Agent Dock and no photo or video tool', async ($, on) => {
+  await start($, on)
+  await openPanel($, 'terminal')
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await band.find({ text: 'Agent Dock' })).toBeDefined()
+  expect(await band.find({ text: /photo|video/i })).toBeUndefined()
+  expect(await band.find({ key: 'agentDock' })).toBeUndefined()
+  expect(await band.find({ text: 'not installed' })).toBeDefined()
+  await band.unmount()
+})
+
+test('with Agent Dock installed, Open runs /dock', async ($, on) => {
+  const { runs } = await start($, on, undefined, undefined, ['dock'])
+  await openPanel($, 'terminal')
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await band.press({ key: 'agentDock' })
+  expect(runs).toContainEqual({ command: 'dock', args: '' })
+  expect(await band.find({ text: 'not installed' })).toBeUndefined()
   await band.unmount()
 })

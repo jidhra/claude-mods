@@ -42,6 +42,7 @@ const isOpenAtom = atom({ plugin: 'jidhras-tools', key: 'isOpen' } as const, fal
 const modelAtom = atom({ plugin: 'jidhras-tools', key: 'model' } as const, null)
 const effortAtom = atom({ plugin: 'jidhras-tools', key: 'effort' } as const, null)
 const hasCleanViewAtom = atom({ plugin: 'jidhras-tools', key: 'hasCleanView' } as const, false)
+const hasAgentDockAtom = atom({ plugin: 'jidhras-tools', key: 'hasAgentDock' } as const, false)
 const cleanViewAtom = atom({ plugin: 'clean-view', key: 'cleanViewEnabled' } as const, true)
 
 /** Finds which offered model a model name (an id, an alias, a /config value) is. */
@@ -151,6 +152,10 @@ async function setCleanView($: Engine, isOn: boolean) {
   await $.command.run({ command: 'simple', args: isOn ? 'on' : 'off' })
 }
 
+async function openAgentDock($: Engine) {
+  await $.command.run({ command: 'dock', args: '' })
+}
+
 async function setOpen($: Engine, isOpen: boolean) {
   await update($, isOpenAtom, () => isOpen)
   if (isOpen) {
@@ -176,8 +181,9 @@ export function registerJidhrasTools(on: On) {
     try {
       const commands = await $.command.list()
       await update($, hasCleanViewAtom, () => commands.some(command => command.name === 'simple'))
+      await update($, hasAgentDockAtom, () => commands.some(command => command.name === 'dock'))
     } catch {
-      // Without the list, the Clean View row says it is not installed.
+      // Without the list, the Clean View and Agent Dock rows say they are not installed.
     }
     await refresh($)
 
@@ -225,6 +231,14 @@ export function registerJidhrasTools(on: On) {
     const hasEffort = model === null || model.hasEffort
     const hasCleanView = await read($, hasCleanViewAtom)
     const isCleanViewOn = hasCleanView && (await read($, cleanViewAtom))
+    const hasAgentDock = await read($, hasAgentDockAtom)
+
+    // LAUNCH and SETTINGS share one look: dim, letter-spaced, a blank line above and below.
+    const sectionHeading = (label: string) => (
+      <Box key={`heading:${label}`} marginTop={1} marginBottom={1} paddingLeft={2}>
+        <Text dimColor>{label}</Text>
+      </Box>
+    )
 
     const summary = [model?.label ?? 'Default model', hasEffort ? (effort?.label ?? 'Default effort') : null]
       .filter(part => part !== null)
@@ -294,9 +308,23 @@ export function registerJidhrasTools(on: On) {
             </Box>
           </Box>
 
-          <Box marginTop={1} paddingLeft={2}>
-            <Text dimColor>S E T T I N G S</Text>
+          {sectionHeading('L A U N C H')}
+          <Box flexDirection="row" justifyContent="space-between" gap={2}>
+            <Box flexDirection="row" gap={1} flexShrink={1}>
+              <Text color="claude">◆</Text>
+              <Text bold>Agent Dock</Text>
+              <Text dimColor wrap="truncate-end">
+                split requests across helpers
+              </Text>
+            </Box>
+            {hasAgentDock ? (
+              <Button key="agentDock" plain label=" Open " onPress={() => openAgentDock($)} />
+            ) : (
+              <Text dimColor>not installed</Text>
+            )}
           </Box>
+
+          {sectionHeading('S E T T I N G S')}
           <Box flexDirection="row" justifyContent="space-between" gap={2}>
             <Box flexDirection="row" gap={1} flexShrink={1}>
               <Text color={isCleanViewOn ? 'success' : 'inactive'}>{isCleanViewOn ? '●' : '○'}</Text>

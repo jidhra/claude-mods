@@ -9,6 +9,7 @@ declare module 'claude-code' {
       model: JidhrasToolsModel
       effort: JidhrasToolsEffort
       hasCleanView: boolean
+      hasAgentDock: boolean
     }
   }
 }

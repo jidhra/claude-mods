@@ -1,7 +1,7 @@
 {
   "name": "clean-view",
-  "version": "0.1.2",
-  "description": "A calm, friendly view: hides tool rows and shows a plain-English checklist of the plan above the prompt.",
+  "version": "0.1.3",
+  "description": "A calm, friendly view: hides tool rows and shows a plain-English checklist of the plan above the prompt. Includes Agent Dock, which splits each request across a team of helper agents.",
   "author": {
     "name": "jidhra"
   },

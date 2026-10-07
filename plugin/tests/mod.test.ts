@@ -70,7 +70,7 @@ function world(on: On, options: WorldOptions = {}) {
   on('session.cwd', () => ({ value: cwd }))
   on('ui.open', ($, e) => {
     opened.push(e.id)
-    return { value: undefined }
+    return { value: { isPlaced: true as const } }
   })
   on('ui.close', ($, e) => {
     closed.push(e.id)
@@ -154,17 +154,19 @@ async function settle(): Promise<void> {
 const SEED = { text: 'rename the flag to --dry-run\n\nadd a test for the empty list', sent: [], draft: '' }
 
 describe('the pane', () => {
-  test('/buffer-pane opens the pane, and a second /buffer-pane closes it', async ($, on) => {
+  test('the pane opens on session.start; /buffer-pane closes it, and a second /buffer-pane reopens it', async ($, on) => {
     const kept = world(on)
     await $.session.start(kept.session)
-
-    const first = await $.command.run(RUN)
-    expect(first.text).toBe('buffer-pane shown')
+    await Promise.resolve()
     expect(kept.opened).toEqual([PLUGIN])
 
-    const second = await $.command.run(RUN)
-    expect(second.text).toBe('buffer-pane hidden')
+    const first = await $.command.run(RUN)
+    expect(first.text).toBe('buffer-pane hidden')
     expect(kept.closed).toEqual([PLUGIN])
+
+    const second = await $.command.run(RUN)
+    expect(second.text).toBe('buffer-pane shown')
+    expect(kept.opened).toEqual([PLUGIN, PLUGIN])
   })
 
   test('a buffer in the store is drawn after session.start, with no command run first', async ($, on) => {
@@ -178,6 +180,32 @@ describe('the pane', () => {
       { key: 'block:2', mark: ' ', value: 'add a test for the empty list' },
     ])
     expect(textOf(tree)).toContain('replaces the prompt box')
+  })
+
+  test('the pane draws the masthead count, the queue card with the next-up block, and the new-block card', async ($, on) => {
+    const kept = world(on, { store: { 'buffer:/work': { ...SEED, sent: ['add a test for the empty list'] } } })
+    await $.session.start(kept.session)
+
+    const text = textOf(await $.ui.render(PANE))
+
+    expect(text).toContain('BUFFER PANE')
+    expect(text).toContain(' QUEUED')
+    expect(text).toContain('QUEUE · next up')
+    expect(text).toContain('2 queued · 1 in prompt')
+    expect(text).toContain('▶ 1')
+    expect(text).toContain('NEW BLOCK')
+    expect(text).toContain('in prompt')
+  })
+
+  test('an empty buffer draws a quiet queue card that says nothing yet', async ($, on) => {
+    const kept = world(on)
+    await $.session.start(kept.session)
+
+    const tree = await $.ui.render(PANE)
+
+    expect(rowsOf(tree)).toEqual([])
+    expect(textOf(tree)).toContain('nothing yet')
+    expect(textOf(tree)).toContain('NEW BLOCK')
   })
 
   test('the new-block field is drawn last, takes the focus, and holds the stored draft', async ($, on) => {

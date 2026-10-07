@@ -18,7 +18,7 @@
 import type { Elements, On, RenderElement } from 'claude-code'
 
 const PANE_ID = 'buffer-pane'
-const PANE_TITLE = 'buffer-pane'
+const PANE_TITLE = 'Buffer Pane'
 const COMMAND = 'buffer-pane'
 
 const STORE_KEY_PREFIX = 'buffer:'
@@ -269,26 +269,66 @@ async function submit(state: State, host: Host, id: number): Promise<void> {
 // unknown prop drops the whole tree with no message. `Text` takes no `key`.
 type Ui = Pick<Elements['terminal'], 'Box' | 'Button' | 'Text' | 'Input'>
 
+// Flightdeck's look (its `theme` palette): theme keys, never fixed hex, so light, dark and
+// colour-blind themes all work. Only the keys this pane uses.
+const C = {
+  main: 'claude',
+  agent: 'suggestion',
+  gate: 'success',
+  dim: 'inactive',
+  faint: 'subtle',
+} as const
+
+// The narrowest pane the layout is sized for; a narrower body clips at its right edge.
+const MIN_WIDTH = 40
+// The number column at the left of each block row: a next-up glyph and a two-digit number.
+const GUTTER_WIDTH = 3
+const NEXT_UP_MARK = '▶'
+
+// Legend items that fit on one row of `width` cells, in order; the rest are dropped (Flightdeck's
+// `fitLegend`).
+function fitLegend<T extends { label: string }>(items: readonly T[], width: number): T[] {
+  const out: T[] = []
+  let used = 0
+  for (const item of items) {
+    const cells = item.label.length + 4
+    if (used + cells > width) break
+    out.push(item)
+    used += cells
+  }
+  return out
+}
+
 // No `hotkey` on a Button: a hotkey does not fire in a pane (measured in pull-request-pane,
 // two terminal setups). The arrow keys with Enter, or a click, press a Button. `plain` draws
 // the label alone, and the focus and the pointer still invert it, so the brackets of `[+]` are
 // the only chrome and the gutter keeps a fixed width.
-function blockRowOf(ui: Ui, block: Block, state: State, host: Host): RenderElement {
+function blockRowOf(ui: Ui, block: Block, index: number, state: State, host: Host): RenderElement {
   const { Box, Button, Text, Input } = ui
   const key = `block:${block.id}`
+  const isNext = index === 0
+  const isSent = isSentOf(state.buffer, block)
   return Box({
     key,
     flexDirection: 'row',
     width: '100%',
     columnGap: 1,
     children: [
+      // The number sits in a Box so the row's own Text children stay the sent mark alone.
+      Box({
+        width: GUTTER_WIDTH,
+        flexShrink: 0,
+        children: [Text(isNext
+          ? { color: C.main, bold: true, children: `${NEXT_UP_MARK}${String(index + 1).padStart(GUTTER_WIDTH - 1)}` }
+          : { color: C.faint, children: String(index + 1).padStart(GUTTER_WIDTH) })],
+      }),
       Button({ key: `${key}:fill`, label: '[+]', plain: true, onPress: () => void fill(state, host, block.id).catch(() => undefined) }),
       Button({ key: `${key}:submit`, label: '[>]', plain: true, onPress: () => void submit(state, host, block.id).catch(() => undefined) }),
       Button({ key: `${key}:remove`, label: '[x]', plain: true, onPress: () => commit(state, host, afterRemoveOf(state.buffer, block.id)) }),
       // `^` and `v` are ASCII: no font draws them wider than one cell (an arrow glyph can).
       Button({ key: `${key}:up`, label: '[^]', plain: true, onPress: () => commit(state, host, afterMoveOf(state.buffer, block.id, -1)) }),
       Button({ key: `${key}:down`, label: '[v]', plain: true, onPress: () => commit(state, host, afterMoveOf(state.buffer, block.id, 1)) }),
-      Text({ color: 'green', children: isSentOf(state.buffer, block) ? SENT_MARK : NOT_SENT_MARK }),
+      Text({ color: C.gate, bold: true, children: isSent ? SENT_MARK : NOT_SENT_MARK }),
       fieldBoxOf(ui, `${key}:field`, Input({
         key: `${key}:text`,
         value: block.text,
@@ -308,14 +348,14 @@ function fieldBoxOf(ui: Ui, key: string, field: RenderElement): RenderElement {
 }
 
 function draftRowOf(ui: Ui, state: State, host: Host): RenderElement {
-  const { Box, Input } = ui
+  const { Box, Text, Input } = ui
   return Box({
     key: 'draft',
     flexDirection: 'row',
     width: '100%',
-    // Lines the field up with the block fields: five 3-cell buttons, the mark, six gaps.
-    paddingLeft: 22,
+    columnGap: 1,
     children: [
+      Text({ color: C.agent, bold: true, children: '›' }),
       fieldBoxOf(ui, 'draft:field', Input({
         key: `draft:${state.draftGeneration}`,
         value: state.buffer.draft,
@@ -332,16 +372,98 @@ function draftRowOf(ui: Ui, state: State, host: Host): RenderElement {
   })
 }
 
-function paneOf(ui: Ui, state: State, host: Host): RenderElement {
+// A card's first row: an upper-case label in the accent on the left, a dim state on the right.
+function cardHeadOf(ui: Ui, label: RenderElement, state: string): RenderElement {
   const { Box, Text } = ui
+  return Box({ justifyContent: 'space-between', children: [label, Text({ dimColor: true, children: state })] })
+}
+
+function queueCardOf(ui: Ui, state: State, host: Host, width: number): RenderElement {
+  const { Box, Text } = ui
+  const blocks = state.buffer.blocks
+  const inPrompt = blocks.filter((block) => isSentOf(state.buffer, block)).length
+  const count = `${blocks.length} queued${inPrompt > 0 ? ` · ${inPrompt} in prompt` : ''}`
+  if (blocks.length === 0) {
+    return Box({
+      flexDirection: 'column',
+      borderStyle: 'round',
+      borderColor: C.faint,
+      paddingX: 1,
+      width,
+      children: [
+        cardHeadOf(ui, Text({ dimColor: true, children: 'queue' }), '0 queued'),
+        Text({ color: C.faint, children: 'nothing yet' }),
+      ],
+    })
+  }
+  return Box({
+    flexDirection: 'column',
+    borderStyle: 'round',
+    borderColor: C.main,
+    paddingX: 1,
+    width,
+    children: [
+      cardHeadOf(ui, Text({ color: C.main, bold: true, children: 'QUEUE · next up' }), count),
+      Box({ flexDirection: 'column', children: blocks.map((block, index) => blockRowOf(ui, block, index, state, host)) }),
+    ],
+  })
+}
+
+function newBlockCardOf(ui: Ui, state: State, host: Host, width: number): RenderElement {
+  const { Box, Text } = ui
+  return Box({
+    flexDirection: 'column',
+    borderStyle: 'round',
+    borderColor: C.agent,
+    paddingX: 1,
+    width,
+    children: [
+      cardHeadOf(ui, Text({ color: C.agent, bold: true, children: 'NEW BLOCK' }), '⏎ adds'),
+      draftRowOf(ui, state, host),
+      Box({ flexDirection: 'column', marginTop: 1, children: [Text({ dimColor: true, children: REPLACE_NOTE })] }),
+    ],
+  })
+}
+
+function paneOf(ui: Ui, state: State, host: Host, bodyColumns: number): RenderElement {
+  const { Box, Text } = ui
+  const width = Math.max(MIN_WIDTH, bodyColumns) - PANE_PADDING_RIGHT
+  const queued = state.buffer.blocks.length
+  const legend = fitLegend(
+    [
+      { label: 'next up', color: C.main },
+      { label: 'in prompt', color: C.gate },
+      { label: 'new block', color: C.agent },
+    ],
+    width,
+  )
   return Box({
     key: 'buffer-pane',
     flexDirection: 'column',
-    paddingTop: 1,
     paddingRight: PANE_PADDING_RIGHT,
+    width: width + PANE_PADDING_RIGHT,
     children: [
-      Box({ flexDirection: 'column', children: [...state.buffer.blocks.map((block) => blockRowOf(ui, block, state, host)), draftRowOf(ui, state, host)] }),
-      Box({ flexDirection: 'column', marginTop: 1, children: [Text({ dimColor: true, children: REPLACE_NOTE })] }),
+      Box({
+        justifyContent: 'center',
+        children: [Text({
+          bold: true,
+          wrap: 'truncate',
+          children: [
+            Text({ children: 'BUFFER PANE' }),
+            Text({ color: C.dim, children: ' · ' }),
+            Text({ color: queued > 0 ? C.main : C.dim, children: String(queued) }),
+            Text({ children: ' QUEUED' }),
+          ],
+        })],
+      }),
+      Box({
+        justifyContent: 'center',
+        columnGap: 2,
+        children: legend.map((item) => Text({ children: [Text({ color: item.color, children: '■' }), Text({ dimColor: true, children: ` ${item.label}` })] })),
+      }),
+      queueCardOf(ui, state, host, width),
+      Text({ color: C.faint, children: '─'.repeat(width) }),
+      newBlockCardOf(ui, state, host, width),
     ],
   })
 }
@@ -357,6 +479,12 @@ export function register(on: On) {
     // A hot reload of this module starts a new session under an open pane. The buffer is
     // read here so the first redraw after the reload shows it.
     await load(state, state.host).catch(() => undefined)
+    // Local patch: open on launch, like Flightdeck. Not awaited: an unasked pane waits for width.
+    // Opened without focus so the prompt box keeps the keyboard.
+    void $.ui.open({ id: PANE_ID, title: PANE_TITLE }).then(
+      (r: { isPlaced?: boolean } | undefined) => { if (r?.isPlaced !== false) state.isOpen = true },
+      () => undefined,
+    )
     return next(e)
   })
 
@@ -380,7 +508,7 @@ export function register(on: On) {
     if (e.requestId !== PANE_ID || state.host === null) return next(e)
     if (e.surface !== 'terminal') return next(e)
     const { Box, Button, Text, Input } = await $.ui.resolve(e)
-    return paneOf({ Box, Button, Text, Input }, state, state.host)
+    return paneOf({ Box, Button, Text, Input }, state, state.host, e.props.bodyColumns)
   })
 
   on('ui.close', { id: PANE_ID }, async ($, e, next) => {

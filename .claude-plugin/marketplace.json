@@ -1,7 +1,7 @@
 {
   "name": "buffer-pane",
   "description": "A pane beside the transcript that holds the next things to tell the agent.",
-  "owner": { "name": "meganemura" },
+  "owner": { "name": "jidhra" },
   "plugins": [
     {
       "name": "buffer-pane",

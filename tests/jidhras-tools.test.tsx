@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { ConfigRow, On } from 'claude-code'
 
-import { EFFORTS, MODELS, effortFor, helperCaption, modelFor } from '../hooks/jidhras-tools'
+import { effortFor, modName, modelFor } from '../hooks/jidhras-tools'
 
 const SURFACES = ['terminal', 'desktop'] as const
 
@@ -35,6 +35,20 @@ function row(key: string, label: string, value: string, options?: string[]): Con
 }
 
 type Runs = { command: string; args: string }[]
+
+type Plugin = { id: string; enabled: boolean; installPath: string; isMod: boolean }
+
+function plugin(id: string, isMod = true, enabled = true): Plugin {
+  return { id, enabled, installPath: `/plugins/${id}`, isMod }
+}
+
+/** Codex is not a mod; Jidhra's Tools never lists itself. */
+const PLUGINS_SPEC = ['clean-view@clean-view', 'flightdeck@claude-flightdeck', 'buffer-pane@buffer-pane']
+let PLUGINS: Plugin[] = []
+function freshPlugins(): Plugin[] {
+  PLUGINS = [...PLUGINS_SPEC.map(id => plugin(id)), plugin('codex@openai-codex', false), plugin('jidhras-tools@jidhras-tools')]
+  return PLUGINS
+}
 type Sets = { key: string; value: unknown }[]
 
 /** Starts a session whose /config shows Opus 5.5 and High, recording commands and config writes. */
@@ -43,19 +57,33 @@ async function start(
   on: On,
   rows: ConfigRow[] = [row('model', 'Model', 'Opus 5.5'), row('effortLevel', 'Effort', 'high')],
   below?: string,
-  extraCommands: string[] = [],
+  plugins: Plugin[] = freshPlugins(),
 ) {
   const runs: Runs = []
   const sets: Sets = []
+  const argvs: string[][] = []
   mock.clock(on, { now: 1_000_000 })
   mock.store(on)
   on('command.register', async (_$, e) => ({ value: { command: e.name } }))
-  on('command.list', async () => ({
-    value: [
-      { name: 'simple', description: 'Clean View', source: 'plugin' as const, plugin: 'clean-view' },
-      ...extraCommands.map(name => ({ name, description: name, source: 'plugin' as const, plugin: 'clean-view' })),
-    ],
-  }))
+  on('process.run', async (_$, e) => {
+    argvs.push([...e.argv])
+    const [, , verb, id] = e.argv
+    const plugin = plugins.find(p => p.id === id)
+    if (plugin !== undefined && (verb === 'enable' || verb === 'disable')) {
+      plugin.enabled = verb === 'enable'
+    }
+    const stdout = verb === 'list' ? JSON.stringify(plugins.map(({ isMod: _, ...rest }) => rest)) : ''
+
+    return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
+  on('fs.read', async (_$, e) => {
+    const plugin = plugins.find(p => e.path === `${p.installPath}/hooks/hooks.json`)
+    if (plugin === undefined) {
+      throw new Error('missing')
+    }
+
+    return { value: plugin.isMod ? '{ "modules": ["./register.tsx"] }' : '{ "hooks": {} }' }
+  })
   on('command.run', async (_$, e) => {
     runs.push({ command: e.command, args: e.args })
 
@@ -76,7 +104,7 @@ async function start(
   on('session.start', async (_$, e) => ({ cwd: e.cwd }))
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
 
-  return { runs, sets }
+  return { runs, sets, argvs }
 }
 
 async function openPanel($: Engine, surface: (typeof SURFACES)[number]) {
@@ -113,7 +141,7 @@ test('the footer button opens a panel showing the current model and effort', asy
     expect(await band.find({ key: 'model:opus' })).toBeUndefined()
     expect(await band.find({ key: 'model:sonnet' })).toBeDefined()
     expect(await band.find({ key: 'effort:high' })).toBeUndefined()
-    expect((await band.find({ key: 'cleanView' }))?.props.label).toBe(' ● On ')
+    expect((await band.find({ key: 'mod:clean-view@clean-view' }))?.props.label).toBe(' ● On ')
     await band.unmount()
 
     const footer = await $.ui.mount({ ...FOOTER, surface })
@@ -168,16 +196,6 @@ test('Haiku shows no effort choices', async ($, on) => {
   await band.unmount()
 })
 
-test('the Clean View switch runs /simple', async ($, on) => {
-  const { runs } = await start($, on)
-  await openPanel($, 'terminal')
-
-  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  await band.press({ key: 'cleanView' })
-  expect(runs).toContainEqual({ command: 'simple', args: 'off' })
-  await band.unmount()
-})
-
 test('/tools opens and closes the panel', async ($, on) => {
   await start($, on)
 
@@ -204,73 +222,77 @@ test('the panel stacks above whatever else draws in the band', async ($, on) => 
   await band.unmount()
 })
 
-test('SETTINGS and LAUNCH headings match, each with a blank line above and below', async ($, on) => {
+test('MODS lists the installed mods by name, without Codex or itself', async ($, on) => {
   await start($, on)
-  await openPanel($, 'terminal')
-
-  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  for (const label of ['S E T T I N G S', 'L A U N C H']) {
-    const heading = await band.find({ key: `heading:${label}` })
-    expect(heading?.props.marginTop).toBe(1)
-    expect(heading?.props.marginBottom).toBe(1)
-    expect(heading?.props.paddingLeft).toBe(2)
-  }
-  const texts = (await band.findAll({ type: 'Text' })).map(found => found.text)
-  expect(texts.indexOf('S E T T I N G S')).toBeLessThan(texts.indexOf('L A U N C H'))
-  await band.unmount()
-})
-
-test('LAUNCH lists Agent Dock and no photo or video tool', async ($, on) => {
-  await start($, on)
-  await openPanel($, 'terminal')
-
-  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await band.find({ text: 'Agent Dock' })).toBeDefined()
-  expect(await band.find({ text: /photo|video/i })).toBeUndefined()
-  expect(await band.find({ key: 'agentDock' })).toBeUndefined()
-  expect(await band.find({ text: 'not installed' })).toBeDefined()
-  await band.unmount()
-})
-
-test('with Agent Dock installed, Open runs /dock', async ($, on) => {
-  const { runs } = await start($, on, undefined, undefined, ['dock'])
-  await openPanel($, 'terminal')
-
-  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  await band.press({ key: 'agentDock' })
-  expect(runs).toContainEqual({ command: 'dock', args: '' })
-  expect(await band.find({ text: 'not installed' })).toBeUndefined()
-  await band.unmount()
-})
-
-test('with Agent Dock installed, SETTINGS has a Helpers toggle that runs /dock helpers', async ($, on) => {
-  const { runs } = await start($, on, undefined, undefined, ['dock'])
   await openPanel($, 'terminal')
 
   const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
   const texts = (await band.findAll({ type: 'Text' })).map(found => found.text)
-  expect(texts.indexOf('Helpers')).toBeGreaterThan(texts.indexOf('S E T T I N G S'))
-  expect(texts.indexOf('Helpers')).toBeLessThan(texts.indexOf('L A U N C H'))
-  expect(texts).toContain('Helpers run on Opus 5.5 · high effort')
-
-  await band.press({ key: 'helpers:fast' })
-  expect(runs).toContainEqual({ command: 'dock', args: 'helpers fast' })
+  expect(texts).toContain('M O D S')
+  expect(texts).toContain('Clean View')
+  expect(texts).toContain('Flightdeck')
+  expect(texts).toContain('Buffer Pane')
+  expect(texts.some(text => /Codex|Jidhras Tools/.test(text))).toBe(false)
+  expect(texts.some(text => /Helpers|Agent Dock|L A U N C H/.test(text))).toBe(false)
+  expect(await band.find({ key: 'mods:allOn' })).toBeDefined()
+  expect(await band.find({ key: 'mods:allOff' })).toBeDefined()
   await band.unmount()
 })
 
-test('without Agent Dock there is no Helpers toggle', async ($, on) => {
-  await start($, on)
+test('the Clean View switch runs /simple and leaves the plugin enabled', async ($, on) => {
+  const { runs, argvs } = await start($, on)
   await openPanel($, 'terminal')
 
   const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await band.find({ text: 'Helpers' })).toBeUndefined()
+  await band.press({ key: 'mod:clean-view@clean-view' })
+  expect(runs).toContainEqual({ command: 'simple', args: 'off' })
+  expect(argvs.some(argv => argv[2] === 'disable')).toBe(false)
   await band.unmount()
 })
 
-test('the Helpers caption names the model helpers get', async () => {
-  const opus = MODELS.find(model => model.family === 'opus')!
-  const high = EFFORTS.find(effort => effort.value === 'high')!
-  expect(helperCaption('fast', opus, high)).toBe('Helpers run on Haiku 4.5 · no effort setting')
-  expect(helperCaption('stepDown', opus, high)).toBe('Helpers run on Sonnet 5.5 · effort inherited')
-  expect(helperCaption('same', opus, high)).toBe('Helpers run on Opus 5.5 · high effort')
+test('switching another mod off disables its plugin and reloads', async ($, on) => {
+  const { runs, argvs } = await start($, on)
+  await openPanel($, 'terminal')
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await band.press({ key: 'mod:flightdeck@claude-flightdeck' })
+  expect(argvs).toContainEqual(['claude', 'plugin', 'disable', 'flightdeck@claude-flightdeck', '--scope', 'user'])
+  expect(runs).toContainEqual({ command: 'reload-plugins', args: '' })
+  expect((await band.find({ key: 'mod:flightdeck@claude-flightdeck' }))?.props.label).toBe(' ○ Off ')
+  await band.unmount()
+})
+
+test('All off runs /simple off and disables every other mod; All on reverses it', async ($, on) => {
+  const { runs, argvs } = await start($, on)
+  await openPanel($, 'terminal')
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await band.press({ key: 'mods:allOff' })
+  expect(runs).toContainEqual({ command: 'simple', args: 'off' })
+  const disabled = argvs.filter(argv => argv[2] === 'disable').map(argv => argv[3])
+  expect(disabled.sort()).toEqual(['buffer-pane@buffer-pane', 'flightdeck@claude-flightdeck'])
+  expect(runs.filter(run => run.command === 'reload-plugins')).toHaveLength(1)
+
+  await band.press({ key: 'mods:allOn' })
+  const enabled = argvs.filter(argv => argv[2] === 'enable').map(argv => argv[3])
+  expect(enabled.sort()).toEqual(['buffer-pane@buffer-pane', 'flightdeck@claude-flightdeck'])
+  expect(runs).toContainEqual({ command: 'simple', args: 'on' })
+  await band.unmount()
+})
+
+test('a disabled Clean View is switched on by enabling its plugin', async ($, on) => {
+  const plugins = freshPlugins()
+  plugins[0]!.enabled = false
+  const { argvs } = await start($, on, undefined, undefined, plugins)
+  await openPanel($, 'terminal')
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await band.press({ key: 'mod:clean-view@clean-view' })
+  expect(argvs).toContainEqual(['claude', 'plugin', 'enable', 'clean-view@clean-view', '--scope', 'user'])
+  await band.unmount()
+})
+
+test('mod names come from plugin ids', () => {
+  expect(modName('clean-view@clean-view')).toBe('Clean View')
+  expect(modName('flightdeck@claude-flightdeck')).toBe('Flightdeck')
 })

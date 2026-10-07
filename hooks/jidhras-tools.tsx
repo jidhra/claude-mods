@@ -1,12 +1,15 @@
 import { atom, read, update } from 'claude-code'
 import type { ConfigRow, EngineInterface, On } from 'claude-code'
 
+import type { JidhrasToolsMod } from '../types'
+
 const COMMAND = 'tools'
 const FALLBACK_COMMAND = 'jidhras-tools'
 const TITLE = "◆ J I D H R A ' S   T O O L S"
 const FOOTER_LABEL = "Jidhra's Tools"
 const RULE_LABEL = " Jidhra's Control Panel ─"
 const LABEL_CELLS = 8
+const MODS_HEADING = 'M O D S'
 
 type Engine = EngineInterface
 
@@ -41,44 +44,108 @@ export const EFFORTS: readonly EffortChoice[] = [
 const isOpenAtom = atom({ plugin: 'jidhras-tools', key: 'isOpen' } as const, false)
 const modelAtom = atom({ plugin: 'jidhras-tools', key: 'model' } as const, null)
 const effortAtom = atom({ plugin: 'jidhras-tools', key: 'effort' } as const, null)
-const hasCleanViewAtom = atom({ plugin: 'jidhras-tools', key: 'hasCleanView' } as const, false)
-const hasAgentDockAtom = atom({ plugin: 'jidhras-tools', key: 'hasAgentDock' } as const, false)
+const modsAtom = atom({ plugin: 'jidhras-tools', key: 'mods' } as const, [])
 const cleanViewAtom = atom({ plugin: 'clean-view', key: 'cleanViewEnabled' } as const, true)
-const helperModelAtom = atom({ plugin: 'clean-view', key: 'dockHelperModel' } as const, 'same')
 
-type HelperChoice = { value: 'fast' | 'same' | 'stepDown'; label: string; arg: string }
+/** Clean View stays loaded when switched off: its row runs /simple instead of disabling the plugin. */
+export const CLEAN_VIEW_ID = 'clean-view@clean-view'
+const SELF_ID = 'jidhras-tools@jidhras-tools'
 
-/** Agent Dock's Helpers toggle: which model its helpers run on. */
-export const HELPERS: readonly HelperChoice[] = [
-  { value: 'fast', label: 'Fast & Cheap', arg: 'fast' },
-  { value: 'same', label: 'Same as me', arg: 'same' },
-  { value: 'stepDown', label: 'One step down', arg: 'stepdown' },
-]
-
-/** The model helpers get under a Helpers choice; MODELS runs lowest first, so one step down is one place left. */
-export function helperModel(choice: string, model: ModelChoice | null): ModelChoice | null {
-  if (choice === 'fast') {
-    return MODELS[0]!
-  }
-  if (model === null || choice === 'same') {
-    return model
-  }
-
-  return MODELS[Math.max(0, MODELS.indexOf(model) - 1)]!
+/** Short captions for the mods this panel knows; any other mod shows its name alone. */
+const CAPTIONS: Readonly<Record<string, string>> = {
+  'clean-view': 'simple checklist',
+  flightdeck: 'agent dashboard',
+  'buffer-pane': 'text snippets pane',
 }
 
-/** Agent Dock sets each helper's model; helpers keep the session's effort, so the caption says so. */
-export function helperCaption(choice: string, model: ModelChoice | null, effort: EffortChoice | null): string {
-  const helper = helperModel(choice, model)
-  const name = helper?.label ?? 'your model'
-  if (helper !== null && !helper.hasEffort) {
-    return `Helpers run on ${name} · no effort setting`
+/** `clean-view@clean-view` → `Clean View`. */
+export function modName(id: string): string {
+  return (id.split('@')[0] ?? id)
+    .split(/[-_]/)
+    .filter(word => word !== '')
+    .map(word => word[0]!.toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+type ListedPlugin = { id: string; enabled: boolean; installPath: string }
+
+/** A mod is a plugin whose hooks/hooks.json loads function-hook modules; classic-hook plugins (Codex) are not. */
+async function isMod($: Engine, installPath: string): Promise<boolean> {
+  try {
+    const manifest = asRecord(JSON.parse(String(await $.fs.read(`${installPath}/hooks/hooks.json`))))
+
+    return Array.isArray(manifest.modules) && manifest.modules.length > 0
+  } catch {
+    return false
   }
-  if (choice === 'same') {
-    return `Helpers run on ${name} · ${effort?.label.toLowerCase() ?? 'your'} effort`
+}
+
+/** Lists the installed mods (not this one) from `claude plugin list --json`. */
+async function refreshMods($: Engine) {
+  let listed: ListedPlugin[]
+  try {
+    const { exitCode, stdout } = await $.process.run(['claude', 'plugin', 'list', '--json'])
+    if (exitCode !== 0) {
+      return
+    }
+    listed = JSON.parse(stdout) as ListedPlugin[]
+  } catch {
+    return
   }
 
-  return `Helpers run on ${name} · effort inherited`
+  const mods: JidhrasToolsMod[] = []
+  for (const plugin of listed) {
+    if (plugin.id !== SELF_ID && (await isMod($, plugin.installPath))) {
+      mods.push({ id: plugin.id, name: modName(plugin.id), enabled: plugin.enabled })
+    }
+  }
+  mods.sort((a, b) => a.name.localeCompare(b.name))
+  await update($, modsAtom, () => mods)
+}
+
+/** Enables or disables each plugin, then reloads once. Returns false if a switch failed (its error is toasted). */
+async function switchPlugins($: Engine, ids: readonly string[], isOn: boolean): Promise<boolean> {
+  let isOk = true
+  for (const id of ids) {
+    const { exitCode, stderr, stdout } = await $.process.run(['claude', 'plugin', isOn ? 'enable' : 'disable', id, '--scope', 'user'])
+    if (exitCode !== 0) {
+      isOk = false
+      $.ui.toast(`${modName(id)}: ${(stderr || stdout).trim().split('\n')[0] ?? 'could not switch'}`)
+    }
+  }
+  if (ids.length > 0) {
+    await refreshMods($)
+    await $.command.run({ command: 'reload-plugins', args: '' })
+  }
+
+  return isOk
+}
+
+async function setMod($: Engine, mod: JidhrasToolsMod, isOn: boolean) {
+  if (mod.id === CLEAN_VIEW_ID && mod.enabled) {
+    await setCleanView($, isOn)
+    return
+  }
+  if (await switchPlugins($, [mod.id], isOn)) {
+    $.ui.toast(`${mod.name}: ${isOn ? 'On' : 'Off'}`)
+  }
+}
+
+async function setAllMods($: Engine, isOn: boolean) {
+  const mods = await read($, modsAtom)
+  const cleanView = mods.find(mod => mod.id === CLEAN_VIEW_ID)
+  // Clean View switches by /simple; it is only enabled as a plugin when All on finds it disabled.
+  const ids = mods
+    .filter(mod => mod.enabled !== isOn && (mod.id !== CLEAN_VIEW_ID || isOn))
+    .map(mod => mod.id)
+  if (cleanView?.enabled && !isOn) {
+    await setCleanView($, false)
+  }
+  await switchPlugins($, ids, isOn)
+  if (cleanView !== undefined && isOn) {
+    await setCleanView($, true)
+  }
+  $.ui.toast(isOn ? 'All mods on' : 'All mods off')
 }
 
 /** Finds which offered model a model name (an id, an alias, a /config value) is. */
@@ -188,19 +255,11 @@ async function setCleanView($: Engine, isOn: boolean) {
   await $.command.run({ command: 'simple', args: isOn ? 'on' : 'off' })
 }
 
-async function chooseHelpers($: Engine, choice: HelperChoice) {
-  await $.command.run({ command: 'dock', args: `helpers ${choice.arg}` })
-  $.ui.toast(`Helpers: ${choice.label}`)
-}
-
-async function openAgentDock($: Engine) {
-  await $.command.run({ command: 'dock', args: '' })
-}
-
 async function setOpen($: Engine, isOpen: boolean) {
   await update($, isOpenAtom, () => isOpen)
   if (isOpen) {
     await refresh($)
+    await refreshMods($)
   }
 }
 
@@ -219,14 +278,8 @@ export function registerJidhrasTools(on: On) {
       await $.command.register({ name: FALLBACK_COMMAND, description: "Open or close Jidhra's Tools" })
     }
 
-    try {
-      const commands = await $.command.list()
-      await update($, hasCleanViewAtom, () => commands.some(command => command.name === 'simple'))
-      await update($, hasAgentDockAtom, () => commands.some(command => command.name === 'dock'))
-    } catch {
-      // Without the list, the Clean View and Agent Dock rows say they are not installed.
-    }
     await refresh($)
+    await refreshMods($)
 
     return next(e)
   })
@@ -270,18 +323,10 @@ export function registerJidhrasTools(on: On) {
     const model = modelFor(await read($, modelAtom))
     const effort = effortFor(await read($, effortAtom))
     const hasEffort = model === null || model.hasEffort
-    const hasCleanView = await read($, hasCleanViewAtom)
-    const isCleanViewOn = hasCleanView && (await read($, cleanViewAtom))
-    const hasAgentDock = await read($, hasAgentDockAtom)
-    const helpers = hasAgentDock ? await read($, helperModelAtom) : 'same'
-
-    // SETTINGS and LAUNCH share one look: dim, letter-spaced, a blank line above and below.
-    const sectionHeading = (label: string) => (
-      <Box key={`heading:${label}`} marginTop={1} marginBottom={1} paddingLeft={2}>
-        <Text dimColor>{label}</Text>
-      </Box>
-    )
-
+    const isCleanViewOn = await read($, cleanViewAtom)
+    const mods = await read($, modsAtom)
+    // A mod reads On when its plugin is enabled; Clean View also needs /simple on.
+    const isOn = (mod: JidhrasToolsMod) => mod.enabled && (mod.id !== CLEAN_VIEW_ID || isCleanViewOn)
     const summary = [model?.label ?? 'Default model', hasEffort ? (effort?.label ?? 'Default effort') : null]
       .filter(part => part !== null)
       .join(' · ')
@@ -310,17 +355,30 @@ export function registerJidhrasTools(on: On) {
       <Text dimColor> {model?.label} doesn't use an effort setting</Text>
     )
 
-    let cleanViewControl
-    if (!hasCleanView) {
-      cleanViewControl = <Text dimColor>not installed</Text>
-    } else if (isCleanViewOn) {
-      cleanViewControl = (
-        <Box backgroundColor="success">
-          <Button key="cleanView" plain label=" ● On " onPress={() => setCleanView($, false)} />
+    const modRow = (mod: JidhrasToolsMod) => {
+      const isModOn = isOn(mod)
+      const caption = CAPTIONS[mod.id.split('@')[0] ?? '']
+
+      return (
+        <Box key={`row:${mod.id}`} flexDirection="row" justifyContent="space-between" gap={2}>
+          <Box flexDirection="row" gap={1} flexShrink={1}>
+            <Text color={isModOn ? 'success' : 'inactive'}>{isModOn ? '●' : '○'}</Text>
+            <Text bold>{mod.name}</Text>
+            {caption !== undefined && (
+              <Text dimColor wrap="truncate-end">
+                {caption}
+              </Text>
+            )}
+          </Box>
+          {isModOn ? (
+            <Box backgroundColor="success">
+              <Button key={`mod:${mod.id}`} plain label=" ● On " onPress={() => setMod($, mod, false)} />
+            </Box>
+          ) : (
+            <Button key={`mod:${mod.id}`} plain label=" ○ Off " onPress={() => setMod($, mod, true)} />
+          )}
         </Box>
       )
-    } else {
-      cleanViewControl = <Button key="cleanView" plain label=" ○ Off " onPress={() => setCleanView($, true)} />
     }
 
     const panel = (
@@ -350,56 +408,18 @@ export function registerJidhrasTools(on: On) {
             </Box>
           </Box>
 
-          {sectionHeading('S E T T I N G S')}
-          <Box flexDirection="row" justifyContent="space-between" gap={2}>
-            <Box flexDirection="row" gap={1} flexShrink={1}>
-              <Text color={isCleanViewOn ? 'success' : 'inactive'}>{isCleanViewOn ? '●' : '○'}</Text>
-              <Text bold>Clean View</Text>
-              <Text dimColor wrap="truncate-end">
-                simple checklist
-              </Text>
+          <Box key="heading:mods" flexDirection="row" justifyContent="space-between" gap={2} marginTop={1} marginBottom={1}>
+            <Box paddingLeft={2}>
+              <Text dimColor>{MODS_HEADING}</Text>
             </Box>
-            {cleanViewControl}
-          </Box>
-
-          {hasAgentDock && (
-            <Box key="helpers" flexDirection="column" marginTop={1}>
-              <Box flexDirection="row" flexWrap="wrap" gap={1}>
-                <Text color="claude">◆</Text>
-                <Text bold>Helpers</Text>
-                {HELPERS.map(choice =>
-                  choice.value === helpers ? (
-                    <Text key={`helpers:${choice.value}`} backgroundColor="claude" color="inverseText" bold>
-                      {` ${choice.label} `}
-                    </Text>
-                  ) : (
-                    <Button key={`helpers:${choice.value}`} plain label={` ${choice.label} `} onPress={() => chooseHelpers($, choice)} />
-                  ),
-                )}
+            {mods.length > 0 && (
+              <Box flexDirection="row" gap={1}>
+                <Button key="mods:allOn" plain label=" All on " onPress={() => setAllMods($, true)} />
+                <Button key="mods:allOff" plain label=" All off " onPress={() => setAllMods($, false)} />
               </Box>
-              <Box paddingLeft={2}>
-                <Text dimColor wrap="truncate-end">
-                  {helperCaption(helpers, model, effort)}
-                </Text>
-              </Box>
-            </Box>
-          )}
-
-          {sectionHeading('L A U N C H')}
-          <Box flexDirection="row" justifyContent="space-between" gap={2}>
-            <Box flexDirection="row" gap={1} flexShrink={1}>
-              <Text color="claude">◆</Text>
-              <Text bold>Agent Dock</Text>
-              <Text dimColor wrap="truncate-end">
-                split requests across helpers
-              </Text>
-            </Box>
-            {hasAgentDock ? (
-              <Button key="agentDock" plain label=" Open " onPress={() => openAgentDock($)} />
-            ) : (
-              <Text dimColor>not installed</Text>
             )}
           </Box>
+          {mods.length > 0 ? mods.map(modRow) : <Text dimColor>No other mods installed</Text>}
         </Box>
         <Text dimColor wrap="truncate-end">
           {'─'.repeat(Math.max(0, width - RULE_LABEL.length))}

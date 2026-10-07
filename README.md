@@ -14,6 +14,8 @@ A Claude Code mod that puts a **◆ Jidhra's Tools ▾** button at the bottom ri
 │ ○ Buffer Pane  text snippets pane                     ○ Off  │
 │ ● Clean View  simple checklist                        ● On   │
 │ ● Flightdeck  agent dashboard                         ● On   │
+│ ● Pinboard  decisions, tasks & links pane             ● On   │
+│ ● Secret Redactor  hides secrets & PII                ● On   │
 ╰──────────────────────────────────────────────────────────────╯
 ──────────────────────────────────────── Jidhra's Control Panel ─
 ```

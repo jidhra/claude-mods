@@ -56,6 +56,8 @@ const CAPTIONS: Readonly<Record<string, string>> = {
   'clean-view': 'simple checklist',
   flightdeck: 'agent dashboard',
   'buffer-pane': 'text snippets pane',
+  pinboard: 'decisions, tasks & links pane',
+  'secret-redactor': 'hides secrets & PII',
 }
 
 /** `clean-view@clean-view` → `Clean View`. */

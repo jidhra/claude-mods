@@ -43,7 +43,14 @@ function plugin(id: string, isMod = true, enabled = true): Plugin {
 }
 
 /** Codex is not a mod; Jidhra's Tools never lists itself. */
-const PLUGINS_SPEC = ['clean-view@clean-view', 'flightdeck@claude-flightdeck', 'buffer-pane@buffer-pane']
+const PLUGINS_SPEC = [
+  'clean-view@clean-view',
+  'flightdeck@claude-flightdeck',
+  'buffer-pane@buffer-pane',
+  'pinboard@pinboard',
+  'secret-redactor@awesome-claude-code-function-hooks',
+]
+const OTHER_MODS = PLUGINS_SPEC.filter(id => id !== 'clean-view@clean-view').sort()
 let PLUGINS: Plugin[] = []
 function freshPlugins(): Plugin[] {
   PLUGINS = [...PLUGINS_SPEC.map(id => plugin(id)), plugin('codex@openai-codex', false), plugin('jidhras-tools@jidhras-tools')]
@@ -232,6 +239,9 @@ test('MODS lists the installed mods by name, without Codex or itself', async ($,
   expect(texts).toContain('Clean View')
   expect(texts).toContain('Flightdeck')
   expect(texts).toContain('Buffer Pane')
+  expect(texts).toContain('Pinboard')
+  expect(texts).toContain('Secret Redactor')
+  expect(texts).toContain('hides secrets & PII')
   expect(texts.some(text => /Codex|Jidhras Tools/.test(text))).toBe(false)
   expect(texts.some(text => /Helpers|Agent Dock|L A U N C H/.test(text))).toBe(false)
   expect(await band.find({ key: 'mods:allOn' })).toBeDefined()
@@ -270,12 +280,12 @@ test('All off runs /simple off and disables every other mod; All on reverses it'
   await band.press({ key: 'mods:allOff' })
   expect(runs).toContainEqual({ command: 'simple', args: 'off' })
   const disabled = argvs.filter(argv => argv[2] === 'disable').map(argv => argv[3])
-  expect(disabled.sort()).toEqual(['buffer-pane@buffer-pane', 'flightdeck@claude-flightdeck'])
+  expect(disabled.sort()).toEqual(OTHER_MODS)
   expect(runs.filter(run => run.command === 'reload-plugins')).toHaveLength(1)
 
   await band.press({ key: 'mods:allOn' })
   const enabled = argvs.filter(argv => argv[2] === 'enable').map(argv => argv[3])
-  expect(enabled.sort()).toEqual(['buffer-pane@buffer-pane', 'flightdeck@claude-flightdeck'])
+  expect(enabled.sort()).toEqual(OTHER_MODS)
   expect(runs).toContainEqual({ command: 'simple', args: 'on' })
   await band.unmount()
 })
@@ -295,4 +305,5 @@ test('a disabled Clean View is switched on by enabling its plugin', async ($, on
 test('mod names come from plugin ids', () => {
   expect(modName('clean-view@clean-view')).toBe('Clean View')
   expect(modName('flightdeck@claude-flightdeck')).toBe('Flightdeck')
+  expect(modName('secret-redactor@awesome-claude-code-function-hooks')).toBe('Secret Redactor')
 })

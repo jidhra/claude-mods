@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { applyUpdate, describeBoard, urlPins } from '../hooks/register'
+import { applyUpdate, asksUser, describeBoard, urlPins } from '../hooks/register'
 
 const SURFACES = ['terminal', 'desktop'] as const
 const TOOL = 'mcp__pinboard__update'
@@ -52,6 +52,14 @@ describe('board', () => {
     )
   })
 
+  test('a reply asks the user something when it ends on a question outside code', () => {
+    expect(asksUser('Saved the draft.\n\nShould I delete it?')).toBe(true)
+    expect(asksUser('Done.\n\n**Want me to go ahead?**')).toBe(true)
+    expect(asksUser('Why did it fail? The cache was stale.\n\nFixed.\n\nTests pass.\n\nPushed.')).toBe(false)
+    expect(asksUser('Run this:\n\n```\n[ -z "$x" ] && echo unset?\n```')).toBe(false)
+    expect(asksUser('')).toBe(false)
+  })
+
   test('URLs get short GitHub labels and lose trailing punctuation', () => {
     const pins = urlPins('See https://github.com/o/hivemind/pull/338, and https://mail.google.com/mail/#drafts/abc). Skip https://x.com/a@b')
     expect(pins).toEqual([
@@ -86,6 +94,19 @@ describe('session', () => {
     }
     const { sections } = await $.prompt.compose({ model: 'm', promptModel: 'm', surfaces: [], tools: [], outputStyle: null, traits: [] })
     expect(sections.at(-1)?.text).toBe('Pinboard now:\nt1 [x] Write it\nt2 [>] Test it\nt3 [ ] Ship it\nd2 [?] Which owner?')
+  })
+
+  test('a question left only in the reply sends Claude back once to pin it', async ($, on) => {
+    on('ui.open', () => ({ value: { isPlaced: true } }))
+    // The settings hooks beneath have nothing to say
+    on('classic.Stop', () => ({}))
+    const asking = { stop_hook_active: false, last_assistant_message: 'Draft saved.\n\nShould I delete the old one?' }
+    expect((await $.classic.Stop(asking)).block).toContain('open_decisions')
+    // Once, so a rhetorical question can still end the turn
+    expect((await $.classic.Stop({ ...asking, stop_hook_active: true })).block).toBeUndefined()
+    expect((await $.classic.Stop({ ...asking, last_assistant_message: 'Draft saved.' })).block).toBeUndefined()
+    await $.tool.call({ tool: TOOL, open_decisions: ['Delete the old draft?'] })
+    expect((await $.classic.Stop(asking)).block).toBeUndefined()
   })
 
   test('the tool call shows as one dim line in the transcript', async $ => {

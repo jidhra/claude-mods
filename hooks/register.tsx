@@ -13,7 +13,8 @@ const links = atom({ plugin: 'pinboard', key: 'links' } as const, [] as Pin[])
 
 const DESCRIPTION = [
   "Keep the session's task list and open decisions on the user's Pinboard, a sidebar that stays in view while the transcript scrolls.",
-  'Use it in place of writing task lists or decision lists in your reply, whenever the work takes 3+ distinct steps or the user gives new instructions.',
+  'Any question you end a reply on that needs the user to answer goes in open_decisions, however small the task, even a single yes/no.',
+  'Use it in place of writing task lists in your reply whenever the work takes 3+ distinct steps or the user gives new instructions.',
   'add_todos: one action per item. start_todo: the todo id you are working on now; exactly one is in progress at a time. done_todos / remove_todos: todo ids.',
   'Update in real time; do not batch completions. Mark a todo done only after the work is actually done, including any verification it needs, never based on intent.',
   'If blocked or partly done, leave it in progress and add a follow-up todo describing the blocker.',
@@ -76,6 +77,18 @@ export function describeBoard(board: Board): string {
   ].join('\n')
 }
 
+// A reply asks the user something when one of its last lines, outside code, ends in a question mark
+export function asksUser(reply: string): boolean {
+  const prose = reply.replace(/```[\s\S]*?```/g, '')
+  const lines = prose.split('\n').map(l => l.trim()).filter(Boolean).slice(-3)
+  return lines.some(l => /\?[*_`)"'\]]*$/.test(l))
+}
+
+const NUDGE =
+  'Your reply ends on a question for the user, but the Pinboard has no open decision. ' +
+  'Call mcp__pinboard__update with open_decisions for it (close it with decide once answered), then end your turn. ' +
+  'If it was rhetorical, end your turn as is.'
+
 const MAKES_COMMAND = /\bgh\s+(?:(?:pr|issue|release|repo|gist)\s+create|(?:pr|issue)\s+comment)\b|\bgit\s+push\b/
 const MAKES_MCP = /^mcp__.*(?:create|draft|send|publish|share|canvas|upload)/i
 
@@ -129,6 +142,14 @@ export const register: Register = on => {
       await update($, decisions, () => board.decisions)
     })
     return { result: describeBoard(board) }
+  })
+
+  // A question left only in the reply scrolls away; send Claude back once to pin it
+  on('classic.Stop', async ($, e, next) => {
+    const ran = await next(e)
+    if (ran.block || e.stop_hook_active || !asksUser(e.last_assistant_message ?? '')) return ran
+    if ((await read($, decisions)).length > 0) return ran
+    return { ...ran, block: NUDGE }
   })
 
   // Links only from actions that make something; reads, fetches and test output just mention URLs

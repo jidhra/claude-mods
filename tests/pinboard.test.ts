@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { applyUpdate, describeBoard, urlPins } from '../hooks/register'
+import { applyUpdate, describeBoard, GUIDE, urlPins } from '../hooks/register'
 
 const SURFACES = ['terminal', 'desktop'] as const
 const TOOL = 'mcp__pinboard__update'
@@ -71,11 +71,22 @@ describe('session', () => {
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ ...PANE, surface })
       const all = await texts(ui)
-      // Finished todos fold into one line; the active one is marked and colored
+      // Masthead with live counts, then the legend
+      expect(all).toContain('PINBOARD · 2 TODO · 1 DECISION')
+      expect(all).toContain('■ todos')
+      expect(all).toContain('■ decisions')
+      // Finished todos fold into one line; the active one is marked, accented and bold
       expect(all).toContain('✓ 1 done')
       expect(all).not.toContain('Write it')
-      expect(all).toContain('▸ Test it')
-      expect((await ui.find({ type: 'Text', text: 'Test it' }))?.props.color).toBe('warning')
+      expect(all).toContain('▶ Test it')
+      const active = await ui.find({ type: 'Text', text: 'Test it' })
+      expect(active?.props.color).toBe('claude')
+      expect(active?.props.bold).toBe(true)
+      // Section cards: todos with a progress gauge, decisions in amber
+      expect(all).toContain('TODOS · 2 open')
+      expect(all).toContain('▰▰▰▱▱▱▱▱ 1/3')
+      expect(all).toContain('DECISIONS · needs you')
+      expect((await ui.find({ type: 'Text', text: '? ' }))?.props.color).toBe('warning')
       expect(all).toContain('○ Ship it')
       expect(all).toContain('1/3')
       expect(all).toContain('? Which owner?')
@@ -86,6 +97,27 @@ describe('session', () => {
     }
     const { sections } = await $.prompt.compose({ model: 'm', promptModel: 'm', surfaces: [], tools: [], outputStyle: null, traits: [] })
     expect(sections.at(-1)?.text).toBe('Pinboard now:\nt1 [x] Write it\nt2 [>] Test it\nt3 [ ] Ship it\nd2 [?] Which owner?')
+  })
+
+  test('the system prompt tells Claude Pinboard is the task tracker', async ($, on) => {
+    on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'hi', scope: 'shared' }] }))
+    const { sections } = await $.prompt.compose({ model: 'm', promptModel: 'm', surfaces: [], tools: [], outputStyle: null, traits: [] })
+    expect(sections.map(s => s.id)).toEqual(['intro', 'pinboard:guide', 'pinboard:board'])
+    const guide = sections.find(s => s.id === 'pinboard:guide')?.text ?? ''
+    expect(guide).toBe(GUIDE)
+    expect(guide).toContain('task tracker')
+    expect(guide).toContain('2+ steps')
+    expect(guide).toContain('mcp__pinboard__update')
+    expect(guide).toContain('ToolSearch')
+    for (const field of ['start_todo', 'done_todos', 'open_decisions']) expect(guide).toContain(field)
+  })
+
+  test('an empty board shows one faint card', async $ => {
+    const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+    const all = await texts(ui)
+    expect(all).toContain('PINBOARD · 0 TODO · 0 DECISIONS')
+    expect(all).toContain('nothing yet')
+    expect((await ui.find({ type: 'Text', text: 'nothing yet' }))?.props.color).toBe('subtle')
   })
 
   test('the tool call shows as one dim line in the transcript', async $ => {
@@ -109,6 +141,7 @@ describe('session', () => {
     await $.tool.call({ tool: 'Bash', command: 'gh pr create --fill' })
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ ...PANE, surface })
+      expect(await texts(ui)).toContain('LINKS · created')
       const found = await ui.findAll({ type: 'Link' })
       expect(found.map(l => l.props.label)).toEqual(['repo PR #12'])
       await ui.unmount()

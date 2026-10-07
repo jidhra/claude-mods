@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { Color, EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type { Decision, Pin, Todo } from '../types'
 
@@ -13,13 +13,50 @@ const links = atom({ plugin: 'pinboard', key: 'links' } as const, [] as Pin[])
 
 const DESCRIPTION = [
   "Keep the session's task list and open decisions on the user's Pinboard, a sidebar that stays in view while the transcript scrolls.",
-  'Use it in place of writing task lists or decision lists in your reply, whenever the work takes 3+ distinct steps or the user gives new instructions.',
+  'Use it in place of writing task lists or decision lists in your reply, whenever the work takes 2+ distinct steps or the user gives new instructions.',
   'add_todos: one action per item. start_todo: the todo id you are working on now; exactly one is in progress at a time. done_todos / remove_todos: todo ids.',
   'Update in real time; do not batch completions. Mark a todo done only after the work is actually done, including any verification it needs, never based on intent.',
   'If blocked or partly done, leave it in progress and add a follow-up todo describing the blocker.',
   'open_decisions: questions that need the user to choose. decide: close a decision by id once the user has answered.',
   'The current board, with ids, is at the end of your system prompt.',
 ].join(' ')
+
+// Pinboard is the person's task tracker; this rides in the system prompt beside the board
+export const GUIDE = [
+  "Pinboard is the user's task tracker (a pane beside the transcript); keep it current instead of listing tasks in replies.",
+  `For any job with 2+ steps, add the todos with ${TOOL} before starting work (load it with ToolSearch first if it is deferred).`,
+  'start_todo as each one begins; done_todos as each one finishes, after verifying it.',
+  'Put questions that need the user in open_decisions.',
+].join('\n')
+
+// Theme colour names (Flightdeck's palette), so light, dark and colour-blind themes all work
+const C = {
+  main: 'claude',
+  agent: 'suggestion',
+  gate: 'success',
+  amber: 'warning',
+  dim: 'inactive',
+  faint: 'subtle',
+} as const
+
+/** A gauge of `width` cells: ▰ filled, ▱ empty. */
+const gauge = (done: number, total: number, width: number) => {
+  const full = total ? Math.max(0, Math.min(width, Math.round((done / total) * width))) : 0
+  return { on: '▰'.repeat(full), off: '▱'.repeat(width - full) }
+}
+
+/** Legend items that fit on one row of `width` cells, in order; the rest are dropped. */
+const fitLegend = <T extends { label: string }>(items: T[], width: number) => {
+  const out: T[] = []
+  let used = 0
+  for (const it of items) {
+    const w = it.label.length + 4
+    if (used + w > width) break
+    out.push(it)
+    used += w
+  }
+  return out
+}
 
 const strings = { type: 'array', items: { type: 'string' } }
 const SCHEMA = {
@@ -105,6 +142,8 @@ export const register: Register = on => {
     await $.tool.register({ name: 'update', description: DESCRIPTION, inputSchema: SCHEMA })
     // Todos parsed from replies by older versions have no id; the tool can't reach them
     await update($, todos, old => old.filter(t => typeof t.id === 'string'))
+    // Local patch: open on launch, like Flightdeck. Not awaited: an unasked pane waits for width.
+    void $.ui.open({ id: PANE, title: TITLE }).catch(() => undefined)
     return next(e)
   })
 
@@ -117,7 +156,13 @@ export const register: Register = on => {
   on('prompt.compose', async ($, e, next) => {
     const { sections } = await next(e)
     const board = describeBoard({ todos: await read($, todos), decisions: await read($, decisions) })
-    return { sections: [...sections, { id: 'pinboard:board', text: board, scope: 'session' }] }
+    return {
+      sections: [
+        ...sections,
+        { id: 'pinboard:guide', text: GUIDE, scope: 'session' },
+        { id: 'pinboard:board', text: board, scope: 'session' },
+      ],
+    }
   })
 
   on('tool.call', { tool: TOOL }, async ($, e) => {
@@ -164,56 +209,145 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button, Link } = $.ui.resolve(e)
-    // One cell of padding on every side
-    const inner = Math.max(10, e.props.bodyColumns - 2)
+    const W = Math.max(40, e.props.bodyColumns)
+    // A card's text area: the width less its border and one cell of padding each side
+    const inner = W - 4
     const allDecisions = await read($, decisions)
     const allTodos = await read($, todos)
     const allLinks = await read($, links)
     const doneCount = allTodos.filter(t => t.isDone).length
+    const openCount = allTodos.length - doneCount
 
-    const header = (title: string, count: string) => (
-      <Text bold>
-        {title} <Text dimColor>{count}</Text>
-      </Text>
+    // A card's first row: the upper-case label and subtitle in its accent, a dim state on the right
+    const header = (accent: Color, label: string, subtitle: string, right: RenderChildren) => (
+      <Box justifyContent="space-between" width={inner}>
+        <Text color={accent} bold wrap="truncate">
+          {`${label.toUpperCase()} · ${subtitle}`}
+        </Text>
+        {right}
+      </Box>
     )
-    const empty = (text: string) => <Text dimColor>  {text}</Text>
-    // The bullet stays in its own column, so wrapped lines indent under the text
-    const item = (bullet: string, text: string, isDim = false, color?: string) => (
+    // The glyph stays in its own column, so wrapped lines indent under the text
+    const item = (glyph: RenderChildren, text: string, props: { color?: Color; bold?: boolean; dimColor?: boolean } = {}) => (
       <Box flexDirection="row" width={inner}>
-        <Text dimColor={isDim} color={color}>{'  ' + bullet + ' '}</Text>
+        <Box width={2} flexShrink={0}>
+          {glyph}
+        </Box>
         <Box flexShrink={1} flexGrow={1}>
-          <Text dimColor={isDim} color={color} wrap="wrap">
+          <Text {...props} wrap="wrap">
             {text}
           </Text>
         </Box>
       </Box>
     )
+    const rule = <Text color={C.faint}>{'─'.repeat(W)}</Text>
 
-    return (
-      <Box flexDirection="column" width={inner + 2} padding={1}>
-        {header('Open decisions', allDecisions.length ? String(allDecisions.length) : '')}
-        {allDecisions.length === 0 && empty('No open decisions.')}
-        {allDecisions.map(d => item('?', d.text))}
-        <Text> </Text>
-
-        {header('Todos', allTodos.length ? `${doneCount}/${allTodos.length}` : '')}
-        {allTodos.length === 0 && empty('No todos yet.')}
-        {allTodos.filter(t => !t.isDone).map(t => (t.isActive ? item('▸', t.text, false, 'warning') : item('○', t.text)))}
+    const g = gauge(doneCount, allTodos.length, 8)
+    const todoCard = (
+      <Box flexDirection="column" borderStyle="round" borderColor={C.main} paddingX={1} width={W}>
+        {header(
+          C.main,
+          'todos',
+          `${openCount} open`,
+          <Text>
+            <Text color={C.main}>{g.on}</Text>
+            <Text color={C.faint}>{g.off}</Text>
+            <Text dimColor>{` ${doneCount}/${allTodos.length}`}</Text>
+          </Text>,
+        )}
+        {allTodos
+          .filter(t => !t.isDone)
+          .map(t =>
+            t.isActive
+              ? item(<Text color={C.main} bold>{'▶ '}</Text>, t.text, { color: C.main, bold: true })
+              : item(<Text dimColor>{'○ '}</Text>, t.text),
+          )}
         {/* Finished todos fold into one line so open work stays on top */}
-        {doneCount > 0 && <Text dimColor>{`  ✓ ${doneCount} done`}</Text>}
-        <Text> </Text>
+        {doneCount > 0 && (
+          <Text>
+            <Text color={C.gate}>{'✓ '}</Text>
+            <Text dimColor>{`${doneCount} done`}</Text>
+          </Text>
+        )}
+      </Box>
+    )
 
-        <Box flexDirection="row" justifyContent="space-between" width={inner}>
-          {header('Links', allLinks.length ? String(allLinks.length) : '')}
-          <Button key="clear-links" label="clear" hotkey="l" plain dimColor onPress={() => update($, links, () => [])} />
-        </Box>
-        {allLinks.length === 0 && empty('Nothing created yet.')}
+    const decisionCard = (
+      <Box flexDirection="column" borderStyle="round" borderColor={C.amber} paddingX={1} width={W}>
+        {header(C.amber, 'decisions', 'needs you', <Text dimColor>{`${allDecisions.length} open`}</Text>)}
+        {allDecisions.map(d => item(<Text color={C.amber} bold>{'? '}</Text>, d.text))}
+      </Box>
+    )
+
+    const linkCard = (
+      <Box flexDirection="column" borderStyle="round" borderColor={C.agent} paddingX={1} width={W}>
+        {header(
+          C.agent,
+          'links',
+          'created',
+          <Box columnGap={1}>
+            <Text dimColor>{String(allLinks.length)}</Text>
+            <Button key="clear-links" label="clear" hotkey="l" plain dimColor onPress={() => update($, links, () => [])} />
+          </Box>,
+        )}
         {allLinks.map(p => (
           <Text wrap="truncate-middle">
-            {'  '}
             <Link href={p.href} label={p.label} />
           </Text>
         ))}
+      </Box>
+    )
+
+    const emptyCard = (
+      <Box flexDirection="column" borderStyle="round" borderColor={C.faint} paddingX={1} width={W}>
+        <Text dimColor>pinboard</Text>
+        <Text color={C.faint}>nothing yet</Text>
+      </Box>
+    )
+
+    // Only sections with something in them; an empty board keeps one faint card
+    const cards = [allTodos.length > 0 && todoCard, allDecisions.length > 0 && decisionCard, allLinks.length > 0 && linkCard].filter(
+      Boolean,
+    )
+
+    const legend = fitLegend(
+      [
+        { label: 'todos', color: C.main },
+        { label: 'decisions', color: C.amber },
+        { label: 'links', color: C.agent },
+      ],
+      W,
+    )
+
+    return (
+      <Box flexDirection="column" width={W}>
+        <Box justifyContent="center">
+          <Text bold wrap="truncate">
+            <Text>PINBOARD</Text>
+            <Text color={C.dim}> · </Text>
+            <Text color={C.main}>{String(openCount)}</Text>
+            <Text> TODO</Text>
+            <Text color={C.dim}> · </Text>
+            <Text color={C.amber}>{String(allDecisions.length)}</Text>
+            <Text>{allDecisions.length === 1 ? ' DECISION' : ' DECISIONS'}</Text>
+          </Text>
+        </Box>
+        <Box justifyContent="center" columnGap={2}>
+          {legend.map(l => (
+            <Text>
+              <Text color={l.color}>■</Text>
+              <Text dimColor>{` ${l.label}`}</Text>
+            </Text>
+          ))}
+        </Box>
+        {cards.length === 0
+          ? emptyCard
+          : cards.map((card, i) => (
+              <Box flexDirection="column">
+                {i > 0 && rule}
+                {card}
+              </Box>
+            ))}
       </Box>
     )
   })

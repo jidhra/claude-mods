@@ -1,7 +1,7 @@
 {
   "name": "pinboard",
   "description": "Pinboard, a Claude Code mod that keeps open decisions, todos and links in a sidebar pane",
-  "owner": { "name": "Jerad Bitner" },
+  "owner": { "name": "jidhra" },
   "plugins": [
     {
       "name": "pinboard",

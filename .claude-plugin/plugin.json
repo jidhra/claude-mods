@@ -1,9 +1,9 @@
 {
   "name": "pinboard",
   "displayName": "Pinboard",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Keeps open decisions, the task list and links Claude creates in a sidebar pane, updated through its own tool",
-  "author": { "name": "Jerad Bitner" },
+  "author": { "name": "jidhra" },
   "homepage": "https://github.com/sirkitree/pinboard",
   "repository": "https://github.com/sirkitree/pinboard",
   "license": "MIT",

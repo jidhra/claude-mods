@@ -1,10 +1,10 @@
-# Jidhra's Tools
+# Mod Tools
 
-A Claude Code mod that puts a **◆ Jidhra's Tools ▾** button at the bottom right of the prompt footer. Click it to open a small control panel above the prompt:
+A Claude Code mod that puts a **◆ Mod Tools ▾** button at the bottom right of the prompt footer. Click it to open a small control panel above the prompt:
 
 ```
 ╭──────────────────────────────────────────────────────────────╮
-│ ◆ J I D H R A ' S   T O O L S                Opus 5.5 · High │
+│ ◆ M O D   T O O L S                          Opus 5.5 · High │
 │                                                              │
 │ MODEL   Haiku 4.5  Sonnet 5.5 [Opus 5.5] Fable 5.1           │
 │ EFFORT  Low  Medium [High] XHigh  Max                        │
@@ -17,12 +17,12 @@ A Claude Code mod that puts a **◆ Jidhra's Tools ▾** button at the bottom ri
 │ ● Pinboard  decisions, tasks & links pane             ● On   │
 │ ● Secret Redactor  hides secrets & PII                ● On   │
 ╰──────────────────────────────────────────────────────────────╯
-──────────────────────────────────────── Jidhra's Control Panel ─
+───────────────────────────────────────────── Mod Control Panel ─
 ```
 
 - **Model**: click a model to switch to it (runs `/model` with its full ID; Opus keeps the 1M context window).
 - **Effort**: click a level to set it (runs `/effort`). Haiku doesn't use effort, so the row says so.
-- **Mods**: every installed mod (a plugin whose `hooks/hooks.json` loads function-hook modules) gets an On/Off switch. Plugins that aren't mods, such as Codex, aren't listed, and neither is Jidhra's Tools itself.
+- **Mods**: every installed mod (a plugin whose `hooks/hooks.json` loads function-hook modules) gets an On/Off switch. Plugins that aren't mods, such as Codex, aren't listed, and neither is Mod Tools itself.
   - Switching a mod runs `claude plugin enable|disable <id> --scope user`, then `/reload-plugins`.
   - Clean View is the exception: it stays loaded and its switch runs `/simple on|off`. If the Clean View plugin is disabled, its switch enables it.
   - **All on** / **All off** switch every listed mod at once, with a single reload.
@@ -35,10 +35,10 @@ If you can't click the footer, type `/tools` to open or close the panel.
 
 ```
 claude plugin marketplace add jidhra/claude-mods
-claude plugin install jidhras-tools@claude-mods --scope user
+claude plugin install mod-tools@claude-mods --scope user
 ```
 
-Or, inside Claude Code: `/plugin install jidhras-tools --marketplace jidhra/claude-mods`.
+Or, inside Claude Code: `/plugin install mod-tools --marketplace jidhra/claude-mods`.
 
 ## Develop
 

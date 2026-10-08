@@ -7,8 +7,8 @@
   },
   "plugins": [
     {
-      "name": "jidhras-tools",
-      "source": "./plugins/jidhras-tools",
+      "name": "mod-tools",
+      "source": "./plugins/mod-tools",
       "description": "A footer button and panel for picking the model and effort and switching your installed mods on and off"
     },
     {

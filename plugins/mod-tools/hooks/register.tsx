@@ -1,7 +1,7 @@
 import type { Register } from 'claude-code'
 
-import { registerJidhrasTools } from './jidhras-tools'
+import { registerModTools } from './mod-tools'
 
 export const register: Register = on => {
-  registerJidhrasTools(on)
+  registerModTools(on)
 }

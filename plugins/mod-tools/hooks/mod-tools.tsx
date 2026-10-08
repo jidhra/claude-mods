@@ -1,13 +1,13 @@
 import { atom, read, update } from 'claude-code'
 import type { ConfigRow, EngineInterface, On } from 'claude-code'
 
-import type { JidhrasToolsMod } from '../types'
+import type { ModToolsMod } from '../types'
 
 const COMMAND = 'tools'
-const FALLBACK_COMMAND = 'jidhras-tools'
-const TITLE = "◆ J I D H R A ' S   T O O L S"
-const FOOTER_LABEL = "Jidhra's Tools"
-const RULE_LABEL = " Jidhra's Control Panel ─"
+const FALLBACK_COMMAND = 'mod-tools'
+const TITLE = '◆ M O D   T O O L S'
+const FOOTER_LABEL = 'Mod Tools'
+const RULE_LABEL = ' Mod Control Panel ─'
 const LABEL_CELLS = 8
 const MODS_HEADING = 'M O D S'
 
@@ -41,15 +41,15 @@ export const EFFORTS: readonly EffortChoice[] = [
   { value: 'max', label: 'Max' },
 ]
 
-const isOpenAtom = atom({ plugin: 'jidhras-tools', key: 'isOpen' } as const, false)
-const modelAtom = atom({ plugin: 'jidhras-tools', key: 'model' } as const, null)
-const effortAtom = atom({ plugin: 'jidhras-tools', key: 'effort' } as const, null)
-const modsAtom = atom({ plugin: 'jidhras-tools', key: 'mods' } as const, [])
+const isOpenAtom = atom({ plugin: 'mod-tools', key: 'isOpen' } as const, false)
+const modelAtom = atom({ plugin: 'mod-tools', key: 'model' } as const, null)
+const effortAtom = atom({ plugin: 'mod-tools', key: 'effort' } as const, null)
+const modsAtom = atom({ plugin: 'mod-tools', key: 'mods' } as const, [])
 const cleanViewAtom = atom({ plugin: 'clean-view', key: 'cleanViewEnabled' } as const, true)
 
 /** Clean View stays loaded when switched off: its row runs /simple instead of disabling the plugin. */
 export const CLEAN_VIEW_ID = 'clean-view@claude-mods'
-const SELF_ID = 'jidhras-tools@claude-mods'
+const SELF_ID = 'mod-tools@claude-mods'
 
 /** Short captions for the mods this panel knows; any other mod shows its name alone. */
 const CAPTIONS: Readonly<Record<string, string>> = {
@@ -95,7 +95,7 @@ async function refreshMods($: Engine) {
     return
   }
 
-  const mods: JidhrasToolsMod[] = []
+  const mods: ModToolsMod[] = []
   for (const plugin of listed) {
     if (plugin.id !== SELF_ID && (await isMod($, plugin.installPath))) {
       mods.push({ id: plugin.id, name: modName(plugin.id), enabled: plugin.enabled })
@@ -123,7 +123,7 @@ async function switchPlugins($: Engine, ids: readonly string[], isOn: boolean): 
   return isOk
 }
 
-async function setMod($: Engine, mod: JidhrasToolsMod, isOn: boolean) {
+async function setMod($: Engine, mod: ModToolsMod, isOn: boolean) {
   if (mod.id === CLEAN_VIEW_ID && mod.enabled) {
     await setCleanView($, isOn)
     return
@@ -269,15 +269,15 @@ async function toggleFromCommand($: Engine) {
   const isOpen = !(await read($, isOpenAtom))
   await setOpen($, isOpen)
 
-  return isOpen ? "Jidhra's Tools is open above the prompt." : "Jidhra's Tools is closed."
+  return isOpen ? 'Mod Tools is open above the prompt.' : 'Mod Tools is closed.'
 }
 
-export function registerJidhrasTools(on: On) {
+export function registerModTools(on: On) {
   on('session.start', async ($, e, next) => {
     try {
-      await $.command.register({ name: COMMAND, description: "Open or close Jidhra's Tools" })
+      await $.command.register({ name: COMMAND, description: 'Open or close Mod Tools' })
     } catch {
-      await $.command.register({ name: FALLBACK_COMMAND, description: "Open or close Jidhra's Tools" })
+      await $.command.register({ name: FALLBACK_COMMAND, description: 'Open or close Mod Tools' })
     }
 
     await refresh($)
@@ -287,7 +287,7 @@ export function registerJidhrasTools(on: On) {
   })
 
   on('command.run', { command: 'tools' }, async $ => ({ text: await toggleFromCommand($) }))
-  on('command.run', { command: 'jidhras-tools' }, async $ => ({ text: await toggleFromCommand($) }))
+  on('command.run', { command: 'mod-tools' }, async $ => ({ text: await toggleFromCommand($) }))
 
   on('turn.start', async ($, e, next) => {
     if (await read($, isOpenAtom)) {
@@ -328,7 +328,7 @@ export function registerJidhrasTools(on: On) {
     const isCleanViewOn = await read($, cleanViewAtom)
     const mods = await read($, modsAtom)
     // A mod reads On when its plugin is enabled; Clean View also needs /simple on.
-    const isOn = (mod: JidhrasToolsMod) => mod.enabled && (mod.id !== CLEAN_VIEW_ID || isCleanViewOn)
+    const isOn = (mod: ModToolsMod) => mod.enabled && (mod.id !== CLEAN_VIEW_ID || isCleanViewOn)
     const summary = [model?.label ?? 'Default model', hasEffort ? (effort?.label ?? 'Default effort') : null]
       .filter(part => part !== null)
       .join(' · ')
@@ -357,7 +357,7 @@ export function registerJidhrasTools(on: On) {
       <Text dimColor> {model?.label} doesn't use an effort setting</Text>
     )
 
-    const modRow = (mod: JidhrasToolsMod) => {
+    const modRow = (mod: ModToolsMod) => {
       const isModOn = isOn(mod)
       const caption = CAPTIONS[mod.id.split('@')[0] ?? '']
 

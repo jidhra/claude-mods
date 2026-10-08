@@ -13,7 +13,7 @@ claude plugin install <mod>@claude-mods --scope user
 
 | Mod | Folder | Origin |
 |---|---|---|
-| Jidhra's Tools | `plugins/jidhras-tools` | mine |
+| Mod Tools | `plugins/mod-tools` | mine |
 | Clean View | `plugins/clean-view` | mine |
 | Pinboard | `plugins/pinboard` | personal copy of [sirkitree/pinboard](https://github.com/sirkitree/pinboard) (MIT) |
 | Buffer Pane | `plugins/buffer-pane` (plugin in `plugin/`) | personal copy of [meganemura/buffer-pane](https://github.com/meganemura/buffer-pane) (MIT) |

@@ -2,14 +2,14 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { ConfigRow, On } from 'claude-code'
 
-import { effortFor, modName, modelFor } from '../hooks/jidhras-tools'
+import { effortFor, modName, modelFor } from '../hooks/mod-tools'
 
 const SURFACES = ['terminal', 'desktop'] as const
 
-const FOOTER = { plugin: 'jidhras-tools', component: 'SessionMode', props: { modes: [] } } as const
+const FOOTER = { plugin: 'mod-tools', component: 'SessionMode', props: { modes: [] } } as const
 
 const BAND = {
-  plugin: 'jidhras-tools',
+  plugin: 'mod-tools',
   component: 'AbovePrompt',
   props: {
     hasSurvey: false,
@@ -42,7 +42,7 @@ function plugin(id: string, isMod = true, enabled = true): Plugin {
   return { id, enabled, installPath: `/plugins/${id}`, isMod }
 }
 
-/** Codex is not a mod; Jidhra's Tools never lists itself. */
+/** Codex is not a mod; Mod Tools never lists itself. */
 const PLUGINS_SPEC = [
   'clean-view@claude-mods',
   'flightdeck@claude-mods',
@@ -53,7 +53,7 @@ const PLUGINS_SPEC = [
 const OTHER_MODS = PLUGINS_SPEC.filter(id => id !== 'clean-view@claude-mods').sort()
 let PLUGINS: Plugin[] = []
 function freshPlugins(): Plugin[] {
-  PLUGINS = [...PLUGINS_SPEC.map(id => plugin(id)), plugin('codex@openai-codex', false), plugin('jidhras-tools@claude-mods')]
+  PLUGINS = [...PLUGINS_SPEC.map(id => plugin(id)), plugin('codex@openai-codex', false), plugin('mod-tools@claude-mods')]
   return PLUGINS
 }
 type Sets = { key: string; value: unknown }[]
@@ -116,9 +116,9 @@ async function start(
 
 async function openPanel($: Engine, surface: (typeof SURFACES)[number]) {
   const footer = await $.ui.mount({ ...FOOTER, surface })
-  expect((await footer.find({ key: 'open' }))?.props.label).toBe("◆ Jidhra's Tools ▾")
+  expect((await footer.find({ key: 'open' }))?.props.label).toBe("◆ Mod Tools ▾")
   await footer.press({ key: 'open' })
-  expect((await footer.find({ key: 'open' }))?.props.label).toBe("◆ Jidhra's Tools ▴")
+  expect((await footer.find({ key: 'open' }))?.props.label).toBe("◆ Mod Tools ▴")
   await footer.unmount()
 }
 
@@ -138,12 +138,12 @@ test('the footer button opens a panel showing the current model and effort', asy
 
   for (const surface of SURFACES) {
     const closed = await $.ui.mount({ ...BAND, surface })
-    expect(await closed.find({ text: /J I D H R A/ })).toBeUndefined()
+    expect(await closed.find({ text: /M O D   T O O L S/ })).toBeUndefined()
     await closed.unmount()
 
     await openPanel($, surface)
     const band = await $.ui.mount({ ...BAND, surface })
-    expect(await band.find({ text: /J I D H R A ' S/ })).toBeDefined()
+    expect(await band.find({ text: /M O D   T O O L S/ })).toBeDefined()
     expect(await band.find({ text: 'Opus 5.5 · High' })).toBeDefined()
     expect(await band.find({ key: 'model:opus' })).toBeUndefined()
     expect(await band.find({ key: 'model:sonnet' })).toBeDefined()
@@ -209,7 +209,7 @@ test('/tools opens and closes the panel', async ($, on) => {
   const opened = await $.command.run(TOOLS)
   expect(opened.text).toMatch(/open/)
   const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await band.find({ text: /J I D H R A/ })).toBeDefined()
+  expect(await band.find({ text: /M O D   T O O L S/ })).toBeDefined()
   await band.unmount()
 
   const closed = await $.command.run(TOOLS)
@@ -222,7 +222,7 @@ test('the panel stacks above whatever else draws in the band', async ($, on) => 
 
   const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
   const texts = (await band.findAll({ type: 'Text' })).map(found => found.text)
-  const title = texts.findIndex(text => /J I D H R A/.test(text))
+  const title = texts.findIndex(text => /M O D   T O O L S/.test(text))
   const below = texts.indexOf('checklist below')
   expect(title).toBeGreaterThanOrEqual(0)
   expect(below).toBeGreaterThan(title)
@@ -242,7 +242,7 @@ test('MODS lists the installed mods by name, without Codex or itself', async ($,
   expect(texts).toContain('Pinboard')
   expect(texts).toContain('Secret Redactor')
   expect(texts).toContain('hides secrets & PII')
-  expect(texts.some(text => /Codex|Jidhras Tools/.test(text))).toBe(false)
+  expect(texts.some(text => /Codex|Mod Tools/.test(text))).toBe(false)
   expect(texts.some(text => /Helpers|Agent Dock|L A U N C H/.test(text))).toBe(false)
   expect(await band.find({ key: 'mods:allOn' })).toBeDefined()
   expect(await band.find({ key: 'mods:allOff' })).toBeDefined()

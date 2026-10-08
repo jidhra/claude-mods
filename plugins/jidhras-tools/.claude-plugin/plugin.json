@@ -1,9 +1,0 @@
-{
-  "name": "jidhras-tools",
-  "version": "0.2.1",
-  "description": "A Jidhra's Tools button in the prompt footer that opens a panel for picking the model and effort and switching your installed mods on and off.",
-  "types": "./types/index.d.ts",
-  "author": {
-    "name": "jidhra"
-  }
-}

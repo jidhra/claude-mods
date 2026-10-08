@@ -1,0 +1,13 @@
+{
+  "name": "mod-tools",
+  "owner": {
+    "name": "jidhra"
+  },
+  "plugins": [
+    {
+      "name": "mod-tools",
+      "source": "./"
+    }
+  ],
+  "description": "Mod Tools: a footer button and panel for model, effort and mod switches"
+}

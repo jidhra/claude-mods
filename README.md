@@ -15,6 +15,7 @@ claude plugin install <mod>@claude-mods --scope user
 |---|---|---|
 | Mod Tools | `plugins/mod-tools` | mine |
 | Clean View | `plugins/clean-view` | mine |
+| Usage | `plugins/usage-pane` | mine |
 | Pinboard | `plugins/pinboard` | personal copy of [sirkitree/pinboard](https://github.com/sirkitree/pinboard) (MIT) |
 | Buffer Pane | `plugins/buffer-pane` (plugin in `plugin/`) | personal copy of [meganemura/buffer-pane](https://github.com/meganemura/buffer-pane) (MIT) |
 | Flightdeck | `plugins/flightdeck` | copy of [scasella/claude-flightdeck](https://github.com/scasella/claude-flightdeck) (MIT) |

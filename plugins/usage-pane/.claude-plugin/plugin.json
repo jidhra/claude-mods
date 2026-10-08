@@ -1,0 +1,10 @@
+{
+  "name": "usage-pane",
+  "displayName": "Usage",
+  "version": "0.1.0",
+  "description": "A Usage pane beside the transcript: 5-hour and weekly limits with reset times, this session's share, cost and tokens, and today/week stats across every session",
+  "author": { "name": "jidhra" },
+  "license": "MIT",
+  "keywords": ["claude-code-mod", "pane", "usage", "rate-limits"],
+  "types": "./types/index.d.ts"
+}

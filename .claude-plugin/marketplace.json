@@ -1,7 +1,10 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "claude-mods",
-  "owner": { "name": "jidhra", "url": "https://github.com/jidhra" },
+  "owner": {
+    "name": "jidhra",
+    "url": "https://github.com/jidhra"
+  },
   "metadata": {
     "description": "Jidhra's Claude Code mods in one marketplace: my own plus personal copies of mods by other authors."
   },
@@ -30,6 +33,11 @@
       "name": "flightdeck",
       "source": "./plugins/flightdeck",
       "description": "A live agent dashboard pane. Copy of scasella/claude-flightdeck by Stephen Casella"
+    },
+    {
+      "name": "usage-pane",
+      "source": "./plugins/usage-pane",
+      "description": "A Usage pane: 5-hour and weekly limits with reset times, this session's share, cost and tokens, and today/week stats across every session"
     },
     {
       "name": "secret-redactor",

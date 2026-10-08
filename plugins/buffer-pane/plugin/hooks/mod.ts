@@ -54,6 +54,9 @@ type Host = {
   submit: (text: string) => Promise<{ drop?: string | undefined }>
   storeGet: (key: string) => Promise<unknown>
   storeSet: (key: string, value: unknown) => Promise<void>
+  // Whether the pane is up, for Mod Tools' Show column (it reads buffer-pane.paneOpen)
+  isPaneUp: () => Promise<boolean>
+  publishOpen: (isOpen: boolean) => Promise<unknown>
 }
 
 // A block holds an id because its position changes when `[x]` deletes a block above it. The
@@ -97,6 +100,8 @@ function hostOf($: any): Host {
     submit: (text) => $.prompt.submit({ text }),
     storeGet: (key) => $.store.get(key),
     storeSet: (key, value) => $.store.set(key, value),
+    isPaneUp: async () => ((await $.ui.panes()) as { id: string }[]).some((pane) => pane.id === PANE_ID),
+    publishOpen: (isOpen) => $.state.set({ plugin: 'buffer-pane', key: 'paneOpen' }, isOpen),
   }
 }
 
@@ -481,6 +486,9 @@ export function register(on: On) {
     // A hot reload of this module starts a new session under an open pane. The buffer is
     // read here so the first redraw after the reload shows it.
     await load(state, state.host).catch(() => undefined)
+    // A reload keeps the pane up but starts this module over: ask the engine whether it is open
+    state.isOpen = await state.host.isPaneUp().catch(() => false)
+    await state.host.publishOpen(state.isOpen).catch(() => undefined)
     // Local patch: no open on launch. Only Flightdeck opens unasked; /buffer-pane opens this one.
     return next(e)
   })
@@ -492,12 +500,14 @@ export function register(on: On) {
     if (state.isOpen) {
       await host.close()
       state.isOpen = false
+      await host.publishOpen(false).catch(() => undefined)
       return { text: 'buffer-pane hidden' }
     }
 
     await load(state, host)
     await host.open()
     state.isOpen = true
+    await host.publishOpen(true).catch(() => undefined)
     return { text: 'buffer-pane shown' }
   })
 
@@ -510,7 +520,10 @@ export function register(on: On) {
 
   on('ui.close', { id: PANE_ID }, async ($, e, next) => {
     const result = await next(e)
-    if (result.deny === undefined) state.isOpen = false
+    if (result.deny === undefined) {
+      state.isOpen = false
+      await state.host?.publishOpen(false).catch(() => undefined)
+    }
     return result
   })
 }

@@ -76,6 +76,7 @@ const turn = atom({ plugin: 'flightdeck', key: 'turn' } as const, DEFAULT_TURN)
 const receipt = atom({ plugin: 'flightdeck', key: 'receipt' } as const, null)
 const view = atom({ plugin: 'flightdeck', key: 'view' } as const, DEFAULT_VIEW)
 const roster = atom({ plugin: 'flightdeck', key: 'roster' } as const, DEFAULT_ROSTER)
+const paneOpen = atom({ plugin: 'flightdeck', key: 'paneOpen' } as const, false)
 
 type ServerBlock = { type: string; id?: string; name?: string; tool_use_id?: string }
 
@@ -223,6 +224,9 @@ export const register: Register = (on, options) => {
       argumentHint: '[open|close|reset|layout auto|compact|wide|mini]',
     })
     await migrate($)
+    // A reload keeps the pane up but starts the module over: re-read whether it is open
+    const isUp = (await $.ui.panes().catch(() => [])).some(p => p.id === PANE)
+    await update($, paneOpen, () => isUp)
     // A host without usage (headless, an SDK host, a session not yet bound) just starts without it.
     const u = await $.session.usage().catch(() => null)
     if (u) {
@@ -239,6 +243,19 @@ export const register: Register = (on, options) => {
     await refreshStatus($, cfg)
     return next(e)
   })
+
+  // Mod Tools' Show column reads paneOpen; the engine lists a plugin's panes only to that plugin
+  on('ui.open', { id: PANE }, async ($, e, next) => {
+    const opened = await next(e)
+    await update($, paneOpen, () => true)
+    return opened
+  }).catch(($, e, next) => next(e))
+
+  on('ui.close', { id: PANE }, async ($, e, next) => {
+    const closed = await next(e)
+    await update($, paneOpen, () => false)
+    return closed
+  }).catch(($, e, next) => next(e))
 
   on('session.end', async ($, e, next) => {
     if (e.reason === 'clear') {

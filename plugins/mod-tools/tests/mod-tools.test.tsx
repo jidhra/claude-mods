@@ -307,3 +307,43 @@ test('mod names come from plugin ids', () => {
   expect(modName('flightdeck@claude-mods')).toBe('Flightdeck')
   expect(modName('secret-redactor@claude-mods')).toBe('Secret Redactor')
 })
+
+describe('show column', () => {
+  test('mods with a pane get Shown (green) or Hidden; the rest leave the cell empty', async ($, on) => {
+    // Pinboard publishes that its pane is open; the other panes read closed
+    on('state.get', { plugin: 'pinboard', key: 'paneOpen' }, async () => ({ value: { value: true, version: 1 } }))
+    const { runs } = await start($, on)
+    await openPanel($, 'terminal')
+
+    for (const surface of SURFACES) {
+      const band = await $.ui.mount({ ...BAND, surface })
+      expect(await band.find({ text: /Show/ })).toBeDefined()
+      expect(await band.find({ text: /Enabled/ })).toBeDefined()
+      const pinboard = await band.find({ key: 'show:pinboard@claude-mods' })
+      expect(pinboard?.props.label).toBe(' ● Shown ')
+      expect((await band.find({ key: 'show:flightdeck@claude-mods' }))?.props.label).toBe(' ○ Hidden ')
+      expect((await band.find({ key: 'show:buffer-pane@claude-mods' }))?.props.label).toBe(' ○ Hidden ')
+      // Secret Redactor and Clean View have no pane
+      expect(await band.find({ key: 'show:secret-redactor@claude-mods' })).toBeUndefined()
+      expect(await band.find({ key: 'show:clean-view@claude-mods' })).toBeUndefined()
+      await band.unmount()
+    }
+
+    const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await band.press({ key: 'show:pinboard@claude-mods' })
+    expect(runs).toContainEqual({ command: 'pinboard', args: 'close' })
+    await band.press({ key: 'show:flightdeck@claude-mods' })
+    expect(runs).toContainEqual({ command: 'flightdeck', args: 'open' })
+    await band.unmount()
+  })
+
+  test('a disabled mod shows no Show button', async ($, on) => {
+    const plugins = freshPlugins().map(p => (p.id === 'pinboard@claude-mods' ? { ...p, enabled: false } : p))
+    await start($, on, undefined, undefined, plugins)
+    await openPanel($, 'terminal')
+    const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    expect(await band.find({ key: 'show:pinboard@claude-mods' })).toBeUndefined()
+    expect((await band.find({ key: 'mod:pinboard@claude-mods' }))?.props.label).toBe(' ○ Off ')
+    await band.unmount()
+  })
+})

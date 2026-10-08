@@ -12,6 +12,7 @@ const TOOL = 'mcp__pinboard__update'
 const decisions = atom({ plugin: 'pinboard', key: 'decisions' } as const, [] as Decision[])
 const todos = atom({ plugin: 'pinboard', key: 'todos' } as const, [] as Todo[])
 const links = atom({ plugin: 'pinboard', key: 'links' } as const, [] as Pin[])
+const paneOpen = atom({ plugin: 'pinboard', key: 'paneOpen' } as const, false)
 
 const DESCRIPTION = [
   "Keep the session's task list and open decisions on the user's Pinboard, a sidebar that stays in view while the transcript scrolls.",
@@ -142,18 +143,43 @@ async function capture($: EngineInterface, change: () => Promise<unknown>): Prom
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'pinboard', description: 'Open the pane of open decisions, todos and links', immediate: true })
+    await $.command.register({
+      name: 'pinboard',
+      description: 'Open the pane of open decisions, todos and links; `close` hides it',
+      argumentHint: '[close]',
+      immediate: true,
+    })
     await $.tool.register({ name: 'update', description: DESCRIPTION, inputSchema: SCHEMA })
     // Todos parsed from replies by older versions have no id; the tool can't reach them
     await update($, todos, old => old.filter(t => typeof t.id === 'string'))
+    // A reload keeps the pane up but starts the module over: re-read whether it is open
+    const isUp = (await $.ui.panes().catch(() => [])).some(p => p.id === PANE)
+    await update($, paneOpen, () => isUp)
     // No open on launch: only Flightdeck opens unasked, so Pinboard's tab lands second when its first item does
     return next(e)
   })
 
-  on('command.run', { command: 'pinboard' }, async $ => {
+  on('command.run', { command: 'pinboard' }, async ($, e) => {
+    if (/^(close|hide)$/i.test(e.args.trim())) {
+      await $.ui.close({ id: PANE })
+      return {}
+    }
     await $.ui.open({ id: PANE, title: TITLE, columns: PANE_COLUMNS })
     return {}
   })
+
+  // Mod Tools' Show column reads paneOpen; the engine lists a plugin's panes only to that plugin
+  on('ui.open', { id: PANE }, async ($, e, next) => {
+    const opened = await next(e)
+    await update($, paneOpen, () => true)
+    return opened
+  }).catch(($, e, next) => next(e))
+
+  on('ui.close', { id: PANE }, async ($, e, next) => {
+    const closed = await next(e)
+    await update($, paneOpen, () => false)
+    return closed
+  }).catch(($, e, next) => next(e))
 
   // The board rides at the end of the system prompt, so it never has to be repeated in replies
   on('prompt.compose', async ($, e, next) => {

@@ -35,7 +35,7 @@ The current board, with ids, is added to the end of the system prompt on every r
 
 - The pane opens by itself the first time something lands on an empty board.
 - Opened that way, Claude Code only seats it in a terminal at least 144 columns wide (110 once you've opened it yourself). Below that, run `/pinboard`.
-- `/pinboard` opens it at any width, even while Claude is working. Ctrl+X then X closes it.
+- `/pinboard` opens it at any width, even while Claude is working. `/pinboard close` or Ctrl+X then X closes it.
 
 ## Install
 

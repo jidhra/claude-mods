@@ -47,6 +47,47 @@ const effortAtom = atom({ plugin: 'mod-tools', key: 'effort' } as const, null)
 const modsAtom = atom({ plugin: 'mod-tools', key: 'mods' } as const, [])
 const cleanViewAtom = atom({ plugin: 'clean-view', key: 'cleanViewEnabled' } as const, true)
 
+/** Each mod with a pane publishes whether it is open; the engine lists a plugin's panes only to that plugin. */
+const flightdeckOpenAtom = atom({ plugin: 'flightdeck', key: 'paneOpen' } as const, false)
+const pinboardOpenAtom = atom({ plugin: 'pinboard', key: 'paneOpen' } as const, false)
+const bufferPaneOpenAtom = atom({ plugin: 'buffer-pane', key: 'paneOpen' } as const, false)
+const usagePaneOpenAtom = atom({ plugin: 'usage-pane', key: 'paneOpen' } as const, false)
+
+type PaneCommand = { command: string; args: string }
+
+/** The mods that have a pane: where Show reads whether it is open, and the commands that show and hide it. */
+export const PANES: Readonly<Record<string, { show: PaneCommand; hide: PaneCommand }>> = {
+  flightdeck: { show: { command: 'flightdeck', args: 'open' }, hide: { command: 'flightdeck', args: 'close' } },
+  pinboard: { show: { command: 'pinboard', args: '' }, hide: { command: 'pinboard', args: 'close' } },
+  // /buffer-pane toggles
+  'buffer-pane': { show: { command: 'buffer-pane', args: '' }, hide: { command: 'buffer-pane', args: '' } },
+  'usage-pane': { show: { command: 'usage-pane', args: 'open' }, hide: { command: 'usage-pane', args: 'close' } },
+}
+
+async function readPaneOpen($: Engine): Promise<Record<string, boolean>> {
+  return {
+    flightdeck: await read($, flightdeckOpenAtom),
+    pinboard: await read($, pinboardOpenAtom),
+    'buffer-pane': await read($, bufferPaneOpenAtom),
+    'usage-pane': await read($, usagePaneOpenAtom),
+  }
+}
+
+/** The bare plugin name: `pinboard@claude-mods` → `pinboard`. */
+const baseName = (id: string) => id.split('@')[0] ?? id
+
+async function setShown($: Engine, mod: ModToolsMod, isShown: boolean) {
+  const pane = PANES[baseName(mod.id)]
+  if (pane === undefined) {
+    return
+  }
+  await $.command.run(isShown ? pane.show : pane.hide)
+}
+
+// Cells of the two switch columns, so every row's buttons line up under their headings
+const SHOW_CELLS = 10
+const ENABLED_CELLS = 8
+
 /** Clean View stays loaded when switched off: its row runs /simple instead of disabling the plugin. */
 export const CLEAN_VIEW_ID = 'clean-view@claude-mods'
 const SELF_ID = 'mod-tools@claude-mods'
@@ -57,6 +98,7 @@ const CAPTIONS: Readonly<Record<string, string>> = {
   flightdeck: 'agent dashboard',
   'buffer-pane': 'text snippets pane',
   pinboard: 'decisions, tasks & links pane',
+  'usage-pane': 'plan limits & session usage pane',
   'secret-redactor': 'hides secrets & PII',
 }
 
@@ -327,6 +369,7 @@ export function registerModTools(on: On) {
     const hasEffort = model === null || model.hasEffort
     const isCleanViewOn = await read($, cleanViewAtom)
     const mods = await read($, modsAtom)
+    const paneOpen = await readPaneOpen($)
     // A mod reads On when its plugin is enabled; Clean View also needs /simple on.
     const isOn = (mod: ModToolsMod) => mod.enabled && (mod.id !== CLEAN_VIEW_ID || isCleanViewOn)
     const summary = [model?.label ?? 'Default model', hasEffort ? (effort?.label ?? 'Default effort') : null]
@@ -359,7 +402,9 @@ export function registerModTools(on: On) {
 
     const modRow = (mod: ModToolsMod) => {
       const isModOn = isOn(mod)
-      const caption = CAPTIONS[mod.id.split('@')[0] ?? '']
+      const caption = CAPTIONS[baseName(mod.id)]
+      const hasPane = mod.enabled && PANES[baseName(mod.id)] !== undefined
+      const isShown = paneOpen[baseName(mod.id)] === true
 
       return (
         <Box key={`row:${mod.id}`} flexDirection="row" justifyContent="space-between" gap={2}>
@@ -372,13 +417,27 @@ export function registerModTools(on: On) {
               </Text>
             )}
           </Box>
-          {isModOn ? (
-            <Box backgroundColor="success">
-              <Button key={`mod:${mod.id}`} plain label=" ● On " onPress={() => setMod($, mod, false)} />
+          <Box flexDirection="row" flexShrink={0}>
+            <Box width={SHOW_CELLS} flexShrink={0}>
+              {hasPane &&
+                (isShown ? (
+                  <Box backgroundColor="success">
+                    <Button key={`show:${mod.id}`} plain label=" ● Shown " onPress={() => setShown($, mod, false)} />
+                  </Box>
+                ) : (
+                  <Button key={`show:${mod.id}`} plain label=" ○ Hidden " onPress={() => setShown($, mod, true)} />
+                ))}
             </Box>
-          ) : (
-            <Button key={`mod:${mod.id}`} plain label=" ○ Off " onPress={() => setMod($, mod, true)} />
-          )}
+            <Box width={ENABLED_CELLS} flexShrink={0}>
+              {isModOn ? (
+                <Box backgroundColor="success">
+                  <Button key={`mod:${mod.id}`} plain label=" ● On " onPress={() => setMod($, mod, false)} />
+                </Box>
+              ) : (
+                <Button key={`mod:${mod.id}`} plain label=" ○ Off " onPress={() => setMod($, mod, true)} />
+              )}
+            </Box>
+          </Box>
         </Box>
       )
     }
@@ -411,13 +470,23 @@ export function registerModTools(on: On) {
           </Box>
 
           <Box key="heading:mods" flexDirection="row" justifyContent="space-between" gap={2} marginTop={1} marginBottom={1}>
-            <Box paddingLeft={2}>
+            <Box flexDirection="row" gap={2} paddingLeft={2} flexShrink={1}>
               <Text dimColor>{MODS_HEADING}</Text>
+              {mods.length > 0 && (
+                <Box flexDirection="row" gap={1}>
+                  <Button key="mods:allOn" plain label=" All on " onPress={() => setAllMods($, true)} />
+                  <Button key="mods:allOff" plain label=" All off " onPress={() => setAllMods($, false)} />
+                </Box>
+              )}
             </Box>
             {mods.length > 0 && (
-              <Box flexDirection="row" gap={1}>
-                <Button key="mods:allOn" plain label=" All on " onPress={() => setAllMods($, true)} />
-                <Button key="mods:allOff" plain label=" All off " onPress={() => setAllMods($, false)} />
+              <Box flexDirection="row" flexShrink={0}>
+                <Box width={SHOW_CELLS} flexShrink={0}>
+                  <Text dimColor> Show</Text>
+                </Box>
+                <Box width={ENABLED_CELLS} flexShrink={0}>
+                  <Text dimColor> Enabled</Text>
+                </Box>
               </Box>
             )}
           </Box>

@@ -10,6 +10,8 @@ declare module 'claude-code' {
       decisions: Decision[]
       todos: Todo[]
       links: Pin[]
+      /** Whether the pane is open; Mod Tools reads it for its Show column. */
+      paneOpen: boolean
     }
   }
 }

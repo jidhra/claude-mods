@@ -105,6 +105,8 @@ declare module 'claude-code' {
       receipt: Receipt | null
       view: View
       roster: Roster
+      /** Whether the pane is open; Mod Tools reads it for its Show column. */
+      paneOpen: boolean
     }
   }
 }

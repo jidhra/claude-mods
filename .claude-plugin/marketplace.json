@@ -1,0 +1,40 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "claude-mods",
+  "owner": { "name": "jidhra", "url": "https://github.com/jidhra" },
+  "metadata": {
+    "description": "Jidhra's Claude Code mods in one marketplace: my own plus personal copies of mods by other authors."
+  },
+  "plugins": [
+    {
+      "name": "jidhras-tools",
+      "source": "./plugins/jidhras-tools",
+      "description": "A footer button and panel for picking the model and effort and switching your installed mods on and off"
+    },
+    {
+      "name": "clean-view",
+      "source": "./plugins/clean-view",
+      "description": "A calm, friendly view: hides tool calls, diffs and command output from the transcript"
+    },
+    {
+      "name": "pinboard",
+      "source": "./plugins/pinboard",
+      "description": "Keeps open decisions, the task list and links Claude creates in a sidebar pane. Personal copy of sirkitree/pinboard"
+    },
+    {
+      "name": "buffer-pane",
+      "source": "./plugins/buffer-pane/plugin",
+      "description": "A pane beside the transcript that holds the next things to tell the agent. Personal copy of meganemura/buffer-pane"
+    },
+    {
+      "name": "flightdeck",
+      "source": "./plugins/flightdeck",
+      "description": "A live agent dashboard pane. Copy of scasella/claude-flightdeck by Stephen Casella"
+    },
+    {
+      "name": "secret-redactor",
+      "source": "./plugins/secret-redactor",
+      "description": "Keeps secrets, emails and IP addresses out of the transcript. Copy of secret-redactor from ray-amjad/awesome-claude-code-function-hooks by Ray Amjad"
+    }
+  ]
+}

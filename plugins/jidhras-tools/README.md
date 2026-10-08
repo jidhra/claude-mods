@@ -34,13 +34,11 @@ If you can't click the footer, type `/tools` to open or close the panel.
 ## Install
 
 ```
-claude plugin marketplace add jidhra/jidhras-tools
-claude plugin install jidhras-tools@jidhras-tools --scope user
+claude plugin marketplace add jidhra/claude-mods
+claude plugin install jidhras-tools@claude-mods --scope user
 ```
 
-Or, inside Claude Code: `/plugin install jidhras-tools --marketplace jidhra/jidhras-tools`.
-
-The repository is private, so you need access to it on GitHub.
+Or, inside Claude Code: `/plugin install jidhras-tools --marketplace jidhra/claude-mods`.
 
 ## Develop
 

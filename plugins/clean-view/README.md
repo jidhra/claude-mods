@@ -7,10 +7,10 @@ A Claude Code mod that makes Claude Code calm and friendly for people who aren't
 In a Claude Code terminal session, type:
 
 ```
-/plugin install clean-view --marketplace jidhra/clean-view
+/plugin install clean-view --marketplace jidhra/claude-mods
 ```
 
-Answer `y` to add the marketplace, then press Enter to choose the user scope. The repository is private, so you need access to it on GitHub.
+Answer `y` to add the marketplace, then press Enter to choose the user scope.
 
 ## Turn it on and off
 

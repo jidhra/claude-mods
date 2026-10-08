@@ -44,16 +44,16 @@ function plugin(id: string, isMod = true, enabled = true): Plugin {
 
 /** Codex is not a mod; Jidhra's Tools never lists itself. */
 const PLUGINS_SPEC = [
-  'clean-view@clean-view',
-  'flightdeck@claude-flightdeck',
-  'buffer-pane@buffer-pane',
-  'pinboard@pinboard',
-  'secret-redactor@awesome-claude-code-function-hooks',
+  'clean-view@claude-mods',
+  'flightdeck@claude-mods',
+  'buffer-pane@claude-mods',
+  'pinboard@claude-mods',
+  'secret-redactor@claude-mods',
 ]
-const OTHER_MODS = PLUGINS_SPEC.filter(id => id !== 'clean-view@clean-view').sort()
+const OTHER_MODS = PLUGINS_SPEC.filter(id => id !== 'clean-view@claude-mods').sort()
 let PLUGINS: Plugin[] = []
 function freshPlugins(): Plugin[] {
-  PLUGINS = [...PLUGINS_SPEC.map(id => plugin(id)), plugin('codex@openai-codex', false), plugin('jidhras-tools@jidhras-tools')]
+  PLUGINS = [...PLUGINS_SPEC.map(id => plugin(id)), plugin('codex@openai-codex', false), plugin('jidhras-tools@claude-mods')]
   return PLUGINS
 }
 type Sets = { key: string; value: unknown }[]
@@ -148,7 +148,7 @@ test('the footer button opens a panel showing the current model and effort', asy
     expect(await band.find({ key: 'model:opus' })).toBeUndefined()
     expect(await band.find({ key: 'model:sonnet' })).toBeDefined()
     expect(await band.find({ key: 'effort:high' })).toBeUndefined()
-    expect((await band.find({ key: 'mod:clean-view@clean-view' }))?.props.label).toBe(' ● On ')
+    expect((await band.find({ key: 'mod:clean-view@claude-mods' }))?.props.label).toBe(' ● On ')
     await band.unmount()
 
     const footer = await $.ui.mount({ ...FOOTER, surface })
@@ -254,7 +254,7 @@ test('the Clean View switch runs /simple and leaves the plugin enabled', async (
   await openPanel($, 'terminal')
 
   const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  await band.press({ key: 'mod:clean-view@clean-view' })
+  await band.press({ key: 'mod:clean-view@claude-mods' })
   expect(runs).toContainEqual({ command: 'simple', args: 'off' })
   expect(argvs.some(argv => argv[2] === 'disable')).toBe(false)
   await band.unmount()
@@ -265,10 +265,10 @@ test('switching another mod off disables its plugin and reloads', async ($, on) 
   await openPanel($, 'terminal')
 
   const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  await band.press({ key: 'mod:flightdeck@claude-flightdeck' })
-  expect(argvs).toContainEqual(['claude', 'plugin', 'disable', 'flightdeck@claude-flightdeck', '--scope', 'user'])
+  await band.press({ key: 'mod:flightdeck@claude-mods' })
+  expect(argvs).toContainEqual(['claude', 'plugin', 'disable', 'flightdeck@claude-mods', '--scope', 'user'])
   expect(runs).toContainEqual({ command: 'reload-plugins', args: '' })
-  expect((await band.find({ key: 'mod:flightdeck@claude-flightdeck' }))?.props.label).toBe(' ○ Off ')
+  expect((await band.find({ key: 'mod:flightdeck@claude-mods' }))?.props.label).toBe(' ○ Off ')
   await band.unmount()
 })
 
@@ -297,13 +297,13 @@ test('a disabled Clean View is switched on by enabling its plugin', async ($, on
   await openPanel($, 'terminal')
 
   const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  await band.press({ key: 'mod:clean-view@clean-view' })
-  expect(argvs).toContainEqual(['claude', 'plugin', 'enable', 'clean-view@clean-view', '--scope', 'user'])
+  await band.press({ key: 'mod:clean-view@claude-mods' })
+  expect(argvs).toContainEqual(['claude', 'plugin', 'enable', 'clean-view@claude-mods', '--scope', 'user'])
   await band.unmount()
 })
 
 test('mod names come from plugin ids', () => {
-  expect(modName('clean-view@clean-view')).toBe('Clean View')
-  expect(modName('flightdeck@claude-flightdeck')).toBe('Flightdeck')
-  expect(modName('secret-redactor@awesome-claude-code-function-hooks')).toBe('Secret Redactor')
+  expect(modName('clean-view@claude-mods')).toBe('Clean View')
+  expect(modName('flightdeck@claude-mods')).toBe('Flightdeck')
+  expect(modName('secret-redactor@claude-mods')).toBe('Secret Redactor')
 })

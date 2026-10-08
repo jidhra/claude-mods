@@ -48,8 +48,8 @@ const modsAtom = atom({ plugin: 'jidhras-tools', key: 'mods' } as const, [])
 const cleanViewAtom = atom({ plugin: 'clean-view', key: 'cleanViewEnabled' } as const, true)
 
 /** Clean View stays loaded when switched off: its row runs /simple instead of disabling the plugin. */
-export const CLEAN_VIEW_ID = 'clean-view@clean-view'
-const SELF_ID = 'jidhras-tools@jidhras-tools'
+export const CLEAN_VIEW_ID = 'clean-view@claude-mods'
+const SELF_ID = 'jidhras-tools@claude-mods'
 
 /** Short captions for the mods this panel knows; any other mod shows its name alone. */
 const CAPTIONS: Readonly<Record<string, string>> = {
@@ -60,7 +60,7 @@ const CAPTIONS: Readonly<Record<string, string>> = {
   'secret-redactor': 'hides secrets & PII',
 }
 
-/** `clean-view@clean-view` → `Clean View`. */
+/** `clean-view@claude-mods` → `Clean View`. */
 export function modName(id: string): string {
   return (id.split('@')[0] ?? id)
     .split(/[-_]/)

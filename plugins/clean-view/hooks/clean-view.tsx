@@ -2,7 +2,6 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On, RenderElement, RenderInput } from 'claude-code'
 
 const STORE_KEY = 'cleanViewEnabled'
-const TOGGLE_KEY = 'toggle'
 
 const enabledAtom = atom({ plugin: 'clean-view', key: 'cleanViewEnabled' } as const, true)
 
@@ -65,38 +64,5 @@ export function registerCleanView(on: On) {
   on('ui.render', { component: 'ToolProgress' }, async ($, e, next) =>
     (await read($, enabledAtom)) ? next({ ...e, props: { ...e.props, hint: '' } }) : next(e),
   )
-
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey) {
-      return next(e)
-    }
-
-    const { Box } = $.ui.resolve(e)
-    const above = await next(e)
-
-    return (
-      <Box flexDirection="column">
-        {above}
-        {await drawToggle($, e)}
-      </Box>
-    )
-  })
 }
 
-/** Draws the on/off button at the right edge; another plugin's band, if any, stacks above it. */
-async function drawToggle($: Engine, e: RenderInput<'AbovePrompt'>): Promise<RenderElement> {
-  const { Box, Button } = $.ui.resolve(e)
-  const isOn = await read($, enabledAtom)
-  const columns = Math.max(24, e.props.bodyColumns)
-
-  return (
-    <Box flexDirection="row" justifyContent="flex-end" width={columns}>
-      <Button
-        key={TOGGLE_KEY}
-        label={isOn ? '● Clean View: ON' : '○ Clean View: OFF'}
-        variant={isOn ? 'primary' : 'secondary'}
-        onPress={() => setEnabled($, !isOn)}
-      />
-    </Box>
-  )
-}

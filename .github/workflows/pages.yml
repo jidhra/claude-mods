@@ -1,0 +1,42 @@
+name: Deploy Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/configure-pages@v6
+      # docs/reviews are internal working notes (the sdist excludes them too);
+      # the published site is docs/ without them.
+      - name: Stage the site
+        run: |
+          mkdir -p "$RUNNER_TEMP/site"
+          cp -a docs/. "$RUNNER_TEMP/site/"
+          rm -rf "$RUNNER_TEMP/site/reviews"
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: ${{ runner.temp }}/site
+          include-hidden-files: true
+      - id: deployment
+        uses: actions/deploy-pages@v5

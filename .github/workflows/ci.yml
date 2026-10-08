@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # A hung test fails the job instead of holding the runner for six hours.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      # requires-python is >=3.10: byte-compile the package on the floor
+      # version so 3.12-only syntax cannot ship (it broke `kin` on 3.10/3.11
+      # from 0.36.1 through 0.46.0).
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+      - run: python -m compileall -q src/kindex
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      # The local transport contract tests skip without tmux; the rust
+      # adapter's symbol tests need universal-ctags.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tmux universal-ctags
+      - run: pip install -e ".[dev,mcp]"
+      - run: pytest -n auto --dist loadfile --timeout 300

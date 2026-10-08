@@ -1,0 +1,56 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install build
+      - name: Check the release tag names the project version
+        run: python scripts/check-release-version.py "$GITHUB_REF_NAME" pyproject.toml
+      - run: python -m build
+      - uses: actions/upload-artifact@v6
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  # The registry entry is part of the release, not a follow-up chore: a client
+  # that discovers kindex through MCP should see the version users can install.
+  # It runs after `publish` because the registry must never name a version PyPI
+  # does not have, and a tag that started both at once would race it.
+  mcp-registry:
+    needs: publish
+    permissions:
+      id-token: write # inherited by the reusable workflow for OIDC login
+      contents: read
+    uses: ./.github/workflows/publish-mcp.yml
+    with:
+      tag: ${{ github.ref_name }}

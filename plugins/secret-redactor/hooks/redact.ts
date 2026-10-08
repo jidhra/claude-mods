@@ -350,7 +350,10 @@ export const register: Register = (on, options) => {
     if (hidden === before) return r
 
     if (cfg.notify) $.ui.notice(e.tool_use_id, `secret-redactor: hid ${hidden - before} value(s)`)
-    if (r.isError) return { isError: true as const, result, text, context: r.context }
+    // An errored call's result is the error string, but core checks a hook's own answer against
+    // the tool's output schema (an object for Bash) and refuses it. A deny after next() undoes
+    // nothing and reaches the model as an error result, so the scrubbed error goes back that way.
+    if (r.isError) return { deny: text ?? (typeof result === 'string' ? result : 'The tool failed; its output was redacted.') }
     return { result, context: r.context }
   })
 

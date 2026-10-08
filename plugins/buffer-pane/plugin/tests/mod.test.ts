@@ -154,19 +154,19 @@ async function settle(): Promise<void> {
 const SEED = { text: 'rename the flag to --dry-run\n\nadd a test for the empty list', sent: [], draft: '' }
 
 describe('the pane', () => {
-  test('the pane opens on session.start; /buffer-pane closes it, and a second /buffer-pane reopens it', async ($, on) => {
+  test('the pane stays closed on session.start; /buffer-pane opens it, and a second /buffer-pane closes it', async ($, on) => {
     const kept = world(on)
     await $.session.start(kept.session)
     await Promise.resolve()
-    expect(kept.opened).toEqual([PLUGIN])
+    expect(kept.opened).toEqual([])
 
     const first = await $.command.run(RUN)
-    expect(first.text).toBe('buffer-pane hidden')
-    expect(kept.closed).toEqual([PLUGIN])
+    expect(first.text).toBe('buffer-pane shown')
+    expect(kept.opened).toEqual([PLUGIN])
 
     const second = await $.command.run(RUN)
-    expect(second.text).toBe('buffer-pane shown')
-    expect(kept.opened).toEqual([PLUGIN, PLUGIN])
+    expect(second.text).toBe('buffer-pane hidden')
+    expect(kept.closed).toEqual([PLUGIN])
   })
 
   test('a buffer in the store is drawn after session.start, with no command run first', async ($, on) => {

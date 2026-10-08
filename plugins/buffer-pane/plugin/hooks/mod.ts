@@ -18,7 +18,7 @@
 import type { Elements, On, RenderElement } from 'claude-code'
 
 const PANE_ID = 'buffer-pane'
-const PANE_TITLE = 'Buffer Pane'
+const PANE_TITLE = 'Buffer pane'
 const COMMAND = 'buffer-pane'
 
 const STORE_KEY_PREFIX = 'buffer:'
@@ -481,12 +481,7 @@ export function register(on: On) {
     // A hot reload of this module starts a new session under an open pane. The buffer is
     // read here so the first redraw after the reload shows it.
     await load(state, state.host).catch(() => undefined)
-    // Local patch: open on launch, like Flightdeck. Not awaited: an unasked pane waits for width.
-    // Opened without focus so the prompt box keeps the keyboard.
-    void $.ui.open({ id: PANE_ID, title: PANE_TITLE, columns: PANE_COLUMNS }).then(
-      (r: { isPlaced?: boolean } | undefined) => { if (r?.isPlaced !== false) state.isOpen = true },
-      () => undefined,
-    )
+    // Local patch: no open on launch. Only Flightdeck opens unasked; /buffer-pane opens this one.
     return next(e)
   })
 

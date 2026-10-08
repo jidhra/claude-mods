@@ -62,6 +62,27 @@ describe('board', () => {
 })
 
 describe('session', () => {
+  test('session.start leaves the pane closed: only Flightdeck opens unasked', async ($, on) => {
+    const opened: string[] = []
+    on('session.start', (_$, e) => ({ cwd: e.cwd }))
+    on('command.register', (_$, e) => ({ value: { command: e.name } }))
+    on('tool.register', (_$, e) => ({ value: { tool: `mcp__pinboard__${e.name}` } }))
+    on('ui.open', (_$, e) => {
+      opened.push(e.id)
+      return { value: { isPlaced: true } }
+    })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+    expect(opened).toEqual([])
+    // The first item still brings it up
+    await $.tool.call({ tool: TOOL, add_todos: ['Write it'] })
+    expect(opened).toEqual(['pinboard'])
+  })
+
+  test('the guide splits tasks by lifetime: session steps here, durable work in kindex', () => {
+    expect(GUIDE).toContain('task_add')
+    expect(GUIDE).toContain('outlive the session')
+  })
+
   test('the tool updates the pane and the system prompt carries the board', async ($, on) => {
     on('ui.open', () => ({ value: { isPlaced: true } }))
     on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'hi', scope: 'shared' }] }))

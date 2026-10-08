@@ -21,6 +21,7 @@ const DESCRIPTION = [
   'If blocked or partly done, leave it in progress and add a follow-up todo describing the blocker.',
   'open_decisions: questions that need the user to choose. decide: close a decision by id once the user has answered.',
   'The current board, with ids, is at the end of your system prompt.',
+  "It is session-only: work that must outlive the session goes to a durable tracker (kindex task_add) instead.",
 ].join(' ')
 
 // Pinboard is the person's task tracker; this rides in the system prompt beside the board
@@ -29,6 +30,7 @@ export const GUIDE = [
   `For any job with 2+ steps, add the todos with ${TOOL} before starting work (load it with ToolSearch first if it is deferred).`,
   'start_todo as each one begins; done_todos as each one finishes, after verifying it.',
   'Put questions that need the user in open_decisions.',
+  "Pinboard holds only this session's steps and questions (/clear empties it). Kindex task_add is for work that must outlive the session (follow-ups, deferred items), never for the steps of the current job.",
 ].join('\n')
 
 // Theme colour names (Flightdeck's palette), so light, dark and colour-blind themes all work
@@ -144,8 +146,7 @@ export const register: Register = on => {
     await $.tool.register({ name: 'update', description: DESCRIPTION, inputSchema: SCHEMA })
     // Todos parsed from replies by older versions have no id; the tool can't reach them
     await update($, todos, old => old.filter(t => typeof t.id === 'string'))
-    // Local patch: open on launch, like Flightdeck. Not awaited: an unasked pane waits for width.
-    void $.ui.open({ id: PANE, title: TITLE, columns: PANE_COLUMNS }).catch(() => undefined)
+    // No open on launch: only Flightdeck opens unasked, so Pinboard's tab lands second when its first item does
     return next(e)
   })
 

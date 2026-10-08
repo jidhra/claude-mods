@@ -1,6 +1,6 @@
 {
   "name": "clean-view",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A calm, friendly view: hides tool calls, diffs and command output from the transcript.",
   "author": {
     "name": "jidhra"

@@ -15,7 +15,7 @@ Answer `y` to add the marketplace, then press Enter to choose the user scope.
 ## Turn it on and off
 
 - Clean View starts on.
-- Click the **Clean View** button above the prompt, or type `/simple off`, `/simple on`, or `/simple` to flip it.
+- Type `/simple off`, `/simple on`, or `/simple` to flip it, or use the Clean View switch in Jidhra's Tools.
 - Your choice is remembered after a restart.
 - When it's off, every hidden row comes back.
 

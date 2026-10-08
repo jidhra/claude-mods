@@ -15,18 +15,24 @@ const BAND = {
   },
 } as const
 
+const PRESENTATION = { isFullscreen: false, columns: 100 } as const
+
 /** Starts a session with a mocked store, and answers every tool with "ok". */
-async function start($: Engine, on: On, above?: string) {
+async function start($: Engine, on: On) {
   mock.store(on)
   on('ui.render', { component: 'AbovePrompt' }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
+    const { Text } = $.ui.resolve(e)
 
-    return above === undefined ? <Box /> : <Text>{above}</Text>
+    return <Text>another panel</Text>
   })
   on('tool.call', async () => ({ result: 'ok' }))
   on('command.register', async (_$, e) => ({ value: { command: e.name } }))
   on('session.start', async (_$, e) => ({ cwd: e.cwd }))
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+}
+
+function simple($: Engine, args: string) {
+  return $.command.run({ command: 'simple', args, origin: { kind: 'composer' }, presentation: PRESENTATION })
 }
 
 test('tools run without any plan first', async ($, on) => {
@@ -38,32 +44,21 @@ test('tools run without any plan first', async ($, on) => {
   expect(read.result).toBe('ok')
 })
 
-test('/simple off flips the button, and pressing it turns Clean View back on', async ($, on) => {
+test('/simple turns Clean View off, flips it back on, and explains a bad argument', async ($, on) => {
   await start($, on)
 
-  const answer = await $.command.run({
-    command: 'simple',
-    args: 'off',
-    origin: { kind: 'composer' },
-    presentation: { isFullscreen: false, columns: 100 },
-  })
-  expect(answer.text).toBe('Clean View is off.')
-
-  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect((await ui.find({ key: 'toggle' }))?.props.label).toBe('○ Clean View: OFF')
-
-  await ui.press({ key: 'toggle' })
-  expect((await ui.find({ key: 'toggle' }))?.props.label).toBe('● Clean View: ON')
-  await ui.unmount()
+  expect((await simple($, 'off')).text).toBe('Clean View is off.')
+  expect((await simple($, '')).text).toBe('Clean View is on.')
+  expect((await simple($, 'maybe')).text).toBe('Use /simple on, /simple off, or just /simple to flip it.')
 })
 
-test("another plugin's band stacks above the button", async ($, on) => {
-  await start($, on, 'another panel')
+test('Clean View draws nothing above the prompt', async ($, on) => {
+  await start($, on)
 
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...BAND, surface })
     expect(await ui.find({ text: 'another panel' })).toBeDefined()
-    expect(await ui.find({ key: 'toggle' })).toBeDefined()
+    expect(await ui.find({ key: 'toggle' })).toBeUndefined()
     await ui.unmount()
   }
 })

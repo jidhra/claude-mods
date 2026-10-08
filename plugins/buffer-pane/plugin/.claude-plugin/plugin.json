@@ -1,6 +1,6 @@
 {
   "name": "buffer-pane",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A pane beside the transcript that holds the next things to tell the agent: write blocks of text while a turn runs, then press [+] to put one block into the prompt box.",
   "author": {
     "name": "jidhra"

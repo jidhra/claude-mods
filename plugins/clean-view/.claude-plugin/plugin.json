@@ -1,0 +1,9 @@
+{
+  "name": "clean-view",
+  "version": "0.3.0",
+  "description": "A calm, friendly view: hides tool calls, diffs and command output from the transcript.",
+  "author": {
+    "name": "jidhra"
+  },
+  "types": "./types/index.d.ts"
+}

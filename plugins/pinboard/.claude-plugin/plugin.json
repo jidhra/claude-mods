@@ -1,0 +1,12 @@
+{
+  "name": "pinboard",
+  "displayName": "Pinboard",
+  "version": "0.2.0",
+  "description": "Keeps open decisions, the task list and links Claude creates in a sidebar pane, updated through its own tool",
+  "author": { "name": "jidhra" },
+  "homepage": "https://github.com/sirkitree/pinboard",
+  "repository": "https://github.com/sirkitree/pinboard",
+  "license": "MIT",
+  "keywords": ["claude-code-mod", "pane", "todos", "decisions", "links"],
+  "types": "./types/index.d.ts"
+}

@@ -1,0 +1,13 @@
+{
+  "name": "jidhras-tools",
+  "owner": {
+    "name": "jidhra"
+  },
+  "plugins": [
+    {
+      "name": "jidhras-tools",
+      "source": "./"
+    }
+  ],
+  "description": "Jidhra's Tools: a footer button and panel for model, effort and mod switches"
+}

@@ -35,6 +35,11 @@
       "name": "secret-redactor",
       "source": "./plugins/secret-redactor",
       "description": "Keeps secrets, emails and IP addresses out of the transcript. Copy of secret-redactor from ray-amjad/awesome-claude-code-function-hooks by Ray Amjad"
+    },
+    {
+      "name": "kindex",
+      "source": "./plugins/kindex",
+      "description": "A local knowledge graph that Claude Code and Codex share as memory. Copy of wandercom/kindex by Wander"
     }
   ]
 }

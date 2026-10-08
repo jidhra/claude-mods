@@ -5,6 +5,8 @@ import type { Decision, Pin, Todo } from '../types'
 
 const PANE = 'pinboard'
 const TITLE = 'Pinboard'
+// Docked width; matches Flightdeck's so the dock doesn't jump between panes
+const PANE_COLUMNS = 66
 const TOOL = 'mcp__pinboard__update'
 
 const decisions = atom({ plugin: 'pinboard', key: 'decisions' } as const, [] as Decision[])
@@ -133,7 +135,7 @@ const isEmpty = async ($: EngineInterface) =>
 async function capture($: EngineInterface, change: () => Promise<unknown>): Promise<void> {
   const wasEmpty = await isEmpty($)
   await change()
-  if (wasEmpty && !(await isEmpty($))) await $.ui.open({ id: PANE, title: TITLE })
+  if (wasEmpty && !(await isEmpty($))) await $.ui.open({ id: PANE, title: TITLE, columns: PANE_COLUMNS })
 }
 
 export const register: Register = on => {
@@ -143,12 +145,12 @@ export const register: Register = on => {
     // Todos parsed from replies by older versions have no id; the tool can't reach them
     await update($, todos, old => old.filter(t => typeof t.id === 'string'))
     // Local patch: open on launch, like Flightdeck. Not awaited: an unasked pane waits for width.
-    void $.ui.open({ id: PANE, title: TITLE }).catch(() => undefined)
+    void $.ui.open({ id: PANE, title: TITLE, columns: PANE_COLUMNS }).catch(() => undefined)
     return next(e)
   })
 
   on('command.run', { command: 'pinboard' }, async $ => {
-    await $.ui.open({ id: PANE, title: TITLE })
+    await $.ui.open({ id: PANE, title: TITLE, columns: PANE_COLUMNS })
     return {}
   })
 

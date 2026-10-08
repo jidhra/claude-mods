@@ -24,6 +24,8 @@ const COMMAND = 'buffer-pane'
 const STORE_KEY_PREFIX = 'buffer:'
 
 const PANE_PADDING_RIGHT = 1
+// Docked width; matches Flightdeck's so the dock doesn't jump between panes
+const PANE_COLUMNS = 66
 
 // `✓` is a long-established narrow symbol: it draws in one cell. A symbol that a font draws
 // two cells wide would push the text field out of line with the rows that have no mark.
@@ -86,7 +88,7 @@ function hostOf($: any): Host {
   return {
     cwd: () => $.session.cwd(),
     status: (text) => $.ui.status(text),
-    open: () => $.ui.open({ id: PANE_ID, title: PANE_TITLE, focus: true }),
+    open: () => $.ui.open({ id: PANE_ID, title: PANE_TITLE, columns: PANE_COLUMNS, focus: true }),
     close: () => $.ui.close({ id: PANE_ID }),
     invalidate: () => $.ui.invalidate('ui.render'),
     log: (text) => $.ui.log(text),
@@ -481,7 +483,7 @@ export function register(on: On) {
     await load(state, state.host).catch(() => undefined)
     // Local patch: open on launch, like Flightdeck. Not awaited: an unasked pane waits for width.
     // Opened without focus so the prompt box keeps the keyboard.
-    void $.ui.open({ id: PANE_ID, title: PANE_TITLE }).then(
+    void $.ui.open({ id: PANE_ID, title: PANE_TITLE, columns: PANE_COLUMNS }).then(
       (r: { isPlaced?: boolean } | undefined) => { if (r?.isPlaced !== false) state.isOpen = true },
       () => undefined,
     )

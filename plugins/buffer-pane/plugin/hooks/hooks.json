@@ -1,0 +1,4 @@
+{
+  "description": "One function-hooks module: /buffer-pane and the pane it draws beside the transcript, a buffer of text blocks kept in the plugin store for each working directory; a press on [+] fills the prompt box with one block.",
+  "modules": ["./mod.ts"]
+}

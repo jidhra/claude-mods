@@ -1,0 +1,28 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Each third-party action and package version below is an exact pin: a commit SHA for an
+# action, an exact version for an npm package. A version changes only through an edit here.
+#
+# The claude CLI pin is a stated exception to the "released 7 or more days ago" rule. The
+# function-hooks API is early access, and `claude plugin test` first shipped in 2.1.273
+# (published 2026-09-15). See docs/decisions/0007.
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.23.2'
+      - run: npm install -g @anthropic-ai/claude-code@2.1.273
+      # Writes .claude/types/claude-code.d.ts, which plugin/hooks/tsconfig.json includes. This
+      # step and the three gates below do not call the model, so no API credential is set.
+      - run: CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude -p "/plugin-types"
+      - run: claude plugin validate plugin
+      - run: npx --yes --package typescript@7.0.2 tsc -p plugin/hooks
+      - run: CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test plugin

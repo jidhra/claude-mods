@@ -1,0 +1,12 @@
+{
+  "name": "buffer-pane",
+  "description": "A pane beside the transcript that holds the next things to tell the agent.",
+  "owner": { "name": "jidhra" },
+  "plugins": [
+    {
+      "name": "buffer-pane",
+      "source": "./plugin",
+      "description": "A pane beside the transcript that holds the next things to tell the agent: write blocks of text while a turn runs, then press [+] to put one block into the prompt box."
+    }
+  ]
+}

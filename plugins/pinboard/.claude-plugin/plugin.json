@@ -1,7 +1,7 @@
 {
   "name": "pinboard",
   "displayName": "Pinboard",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Keeps open decisions, the task list and links Claude creates in a sidebar pane, updated through its own tool",
   "author": { "name": "jidhra" },
   "homepage": "https://github.com/sirkitree/pinboard",

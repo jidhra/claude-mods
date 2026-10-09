@@ -31,6 +31,8 @@ Pinboard registers a tool, `mcp__pinboard__update`, that Claude calls to add tod
 
 The current board, with ids, is added to the end of the system prompt on every request, so Claude always knows what's open. Pinboard doesn't depend on the `TodoWrite` or Task tools, which newer models don't get by default.
 
+Questions are the easiest thing to leave in a reply, where they scroll away. When Claude finishes a turn whose last lines end in a question mark (code blocks aside) while the board has no open decision, Pinboard's `Stop` hook sends it back once to pin the question with `open_decisions`. It only nudges once per stop, so a rhetorical question can still end the turn.
+
 ## How it opens
 
 - The pane opens by itself the first time something lands on an empty board.

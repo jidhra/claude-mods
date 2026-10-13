@@ -419,3 +419,24 @@ test("a background architect's advice is read from its hand-back", async ($, on)
   expect(await ui.find({ text: /» Ship it after one more gate test\./ })).toBeDefined()
   await ui.unmount()
 })
+
+test('/flightdeck status says whether the tab is in front and who has the keyboard', async ($, on) => {
+  engine(on)
+  let panes: { id: string; title: string; isShown: boolean; isFocused: boolean; isPlaced: boolean }[] = []
+  on('session.start', (_$, e) => ({ cwd: e.cwd }))
+  on('command.register', (_$, e) => ({ value: { command: e.name } }))
+  on('session.usage', () => {
+    throw new Error('no usage here')
+  })
+  on('ui.open', () => ({ value: { isPlaced: true as const } }))
+  on('ui.panes', () => ({ value: panes }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  const run = (args: string) =>
+    $.command.run({ command: 'flightdeck', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 160 } })
+
+  expect((await run('status')).text).toBe('Flightdeck is closed.')
+  panes = [{ id: 'flightdeck', title: 'Flightdeck', isShown: false, isFocused: false, isPlaced: true }]
+  expect((await run('status')).text).toBe('Flightdeck: behind another tab, placed, prompt has the keyboard.')
+  panes = [{ ...panes[0]!, isShown: true }]
+  expect((await run('status')).text).toMatch(/^Flightdeck: in front/)
+})

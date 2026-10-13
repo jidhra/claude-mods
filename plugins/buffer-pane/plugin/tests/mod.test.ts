@@ -59,6 +59,7 @@ type WorldOptions = {
 function world(on: On, options: WorldOptions = {}) {
   const cwd = options.cwd ?? '/work'
   const opened: string[] = []
+  const focused: boolean[] = []
   const closed: string[] = []
   const statuses: (string | undefined)[] = []
   const fills: string[] = []
@@ -70,6 +71,7 @@ function world(on: On, options: WorldOptions = {}) {
   on('session.cwd', () => ({ value: cwd }))
   on('ui.open', ($, e) => {
     opened.push(e.id)
+    focused.push(e.focus === true)
     return { value: { isPlaced: true as const } }
   })
   on('ui.close', ($, e) => {
@@ -103,7 +105,7 @@ function world(on: On, options: WorldOptions = {}) {
     return { value: undefined }
   })
 
-  return { cwd, opened, closed, statuses, fills, submits, reads, store, session: { surface: 'terminal', isInteractive: true, cwd } as const }
+  return { cwd, opened, focused, closed, statuses, fills, submits, reads, store, session: { surface: 'terminal', isInteractive: true, cwd } as const }
 }
 
 type Row = { key: string; mark: string; value: string }
@@ -167,6 +169,26 @@ describe('the pane', () => {
     const second = await $.command.run(RUN)
     expect(second.text).toBe('buffer-pane hidden')
     expect(kept.closed).toEqual([PLUGIN])
+  })
+
+  test('`open` and `close` never toggle, answer with no line, and `open` leaves the keyboard on the prompt', async ($, on) => {
+    const kept = world(on)
+    await $.session.start(kept.session)
+
+    const first = await $.command.run({ ...RUN, args: 'open' })
+    expect(first.text).toBeUndefined()
+    const again = await $.command.run({ ...RUN, args: 'open' })
+    expect(again.text).toBeUndefined()
+    expect(kept.closed).toEqual([])
+    expect(kept.focused.every(isFocused => !isFocused)).toBe(true)
+
+    await $.command.run({ ...RUN, args: 'close' })
+    await $.command.run({ ...RUN, args: 'close' })
+    expect(kept.closed).toEqual([PLUGIN])
+
+    // A bare /buffer-pane still opens it with the keyboard
+    await $.command.run(RUN)
+    expect(kept.focused.at(-1)).toBe(true)
   })
 
   test('a buffer in the store is drawn after session.start, with no command run first', async ($, on) => {

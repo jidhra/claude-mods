@@ -168,7 +168,7 @@ export const register: Register = on => {
     // A reload keeps the pane up but starts the module over: re-read whether it is open
     const isUp = (await $.ui.panes().catch(() => [])).some(p => p.id === PANE)
     await update($, paneOpen, () => isUp)
-    // No open on launch: only Flightdeck opens unasked, so Pinboard's tab lands second when its first item does
+    // No open of its own on launch: Mod Tools opens the panes in tab order, Pinboard second
     return next(e)
   })
 

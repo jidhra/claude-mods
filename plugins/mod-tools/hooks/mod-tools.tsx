@@ -45,6 +45,7 @@ const isOpenAtom = atom({ plugin: 'mod-tools', key: 'isOpen' } as const, false)
 const modelAtom = atom({ plugin: 'mod-tools', key: 'model' } as const, null)
 const effortAtom = atom({ plugin: 'mod-tools', key: 'effort' } as const, null)
 const modsAtom = atom({ plugin: 'mod-tools', key: 'mods' } as const, [])
+const launchedAtom = atom({ plugin: 'mod-tools', key: 'launched' } as const, false)
 const cleanViewAtom = atom({ plugin: 'clean-view', key: 'cleanViewEnabled' } as const, true)
 
 /** Each mod with a pane publishes whether it is open; the engine lists a plugin's panes only to that plugin. */
@@ -59,10 +60,12 @@ type PaneCommand = { command: string; args: string }
 export const PANES: Readonly<Record<string, { show: PaneCommand; hide: PaneCommand }>> = {
   flightdeck: { show: { command: 'flightdeck', args: 'open' }, hide: { command: 'flightdeck', args: 'close' } },
   pinboard: { show: { command: 'pinboard', args: '' }, hide: { command: 'pinboard', args: 'close' } },
-  // /buffer-pane toggles
-  'buffer-pane': { show: { command: 'buffer-pane', args: '' }, hide: { command: 'buffer-pane', args: '' } },
+  'buffer-pane': { show: { command: 'buffer-pane', args: 'open' }, hide: { command: 'buffer-pane', args: 'close' } },
   'usage-pane': { show: { command: 'usage-pane', args: 'open' }, hide: { command: 'usage-pane', args: 'close' } },
 }
+
+/** The panes opened at session start, left to right as their dock tabs read. */
+export const LAUNCH_ORDER = ['flightdeck', 'pinboard', 'buffer-pane', 'usage-pane'] as const
 
 async function readPaneOpen($: Engine): Promise<Record<string, boolean>> {
   return {
@@ -82,6 +85,26 @@ async function setShown($: Engine, mod: ModToolsMod, isShown: boolean) {
     return
   }
   await $.command.run(isShown ? pane.show : pane.hide)
+}
+
+/**
+ * Opens the mod panes in LAUNCH_ORDER, once per session. Tabs sit in the order their panes
+ * opened, so each command is awaited before the next. A reload fires session.start again;
+ * the flag lives in $.state, which outlasts the module, so the panes are not opened twice.
+ */
+async function launchPanes($: Engine) {
+  if (await read($, launchedAtom)) {
+    return
+  }
+  await update($, launchedAtom, () => true)
+  const paneOpen = await readPaneOpen($)
+  for (const name of LAUNCH_ORDER) {
+    if (paneOpen[name]) {
+      continue
+    }
+    // A mod that is disabled or not installed has no command: skip it, open the rest
+    await $.command.run(PANES[name]!.show).catch(() => undefined)
+  }
 }
 
 // Cells of the two switch columns, so every row's buttons line up under their headings
@@ -325,7 +348,13 @@ export function registerModTools(on: On) {
     await refresh($)
     await refreshMods($)
 
-    return next(e)
+    const started = await next(e)
+    // Not awaited: command.run waits for the session to go idle
+    if (e.isInteractive) {
+      void launchPanes($).catch(() => undefined)
+    }
+
+    return started
   })
 
   on('command.run', { command: 'tools' }, async $ => ({ text: await toggleFromCommand($) }))

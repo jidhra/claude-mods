@@ -47,7 +47,7 @@ To set `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` for each session, add it to the
 
 ## Use
 
-Type `/buffer-pane` to show the pane. Type it again to hide the pane.
+Type `/buffer-pane` to show the pane. Type it again to hide the pane. `/buffer-pane open` and `/buffer-pane close` (this copy's patch, used by Mod Tools) only open or only close, print nothing, and leave the keyboard on the prompt.
 
 ```
 [+] [>] [x] [^] [v]   rename the flag to --dry-run

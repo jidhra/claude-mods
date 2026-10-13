@@ -12,6 +12,8 @@ declare module 'claude-code' {
       model: ModToolsModel
       effort: ModToolsEffort
       mods: ModToolsMod[]
+      /** True once this session's panes were opened in launch order. */
+      launched: boolean
     }
   }
 }

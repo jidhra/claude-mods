@@ -99,7 +99,7 @@ export const register: Register = on => {
     // A reload keeps the pane up but starts the module over: re-read whether it is open
     const isUp = (await $.ui.panes().catch(() => [])).some(p => p.id === PANE)
     await update($, paneOpen, () => isUp)
-    // No open on launch: only Flightdeck opens unasked
+    // No open of its own on launch: Mod Tools opens the panes in tab order, Usage last
     let ticks = 0
     $.clock.every(TICK_MS, () => {
       void (async () => {

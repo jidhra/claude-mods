@@ -221,7 +221,7 @@ export const register: Register = (on, options) => {
     await $.command.register({
       name: 'flightdeck',
       description: 'Flightdeck, the live agent dashboard: open, close, reset, or set the layout',
-      argumentHint: '[open|close|reset|layout auto|compact|wide|mini]',
+      argumentHint: '[open|close|status|reset|layout auto|compact|wide|mini]',
     })
     await migrate($)
     // A reload keeps the pane up but starts the module over: re-read whether it is open
@@ -275,6 +275,12 @@ export const register: Register = (on, options) => {
       await resetAll($)
       await refreshStatus($, cfg)
       return { text: 'Flightdeck reset.' }
+    }
+    // Where the pane stands: whether its tab is the one in front, and whether it holds the keys
+    if (verb === 'status') {
+      const pane = (await $.ui.panes().catch(() => [])).find(p => p.id === PANE)
+      if (!pane) return { text: 'Flightdeck is closed.' }
+      return { text: `Flightdeck: ${pane.isShown ? 'in front' : 'behind another tab'}, ${pane.isPlaced ? 'placed' : 'waiting to be placed'}, ${pane.isFocused ? 'holds the keyboard' : 'prompt has the keyboard'}.` }
     }
     if (verb === 'layout') {
       const layout: Layout | null = arg === 'compact' || arg === 'wide' || arg === 'auto' || arg === 'mini' ? arg : null

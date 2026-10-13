@@ -347,3 +347,66 @@ describe('show column', () => {
     await band.unmount()
   })
 })
+
+/** Lets the launch that session.start leaves running unawaited finish. */
+async function settle() {
+  const later = (globalThis as unknown as { setTimeout: (f: () => void, ms: number) => unknown }).setTimeout
+  for (let i = 0; i < 20; i += 1) await new Promise<void>(resolve => later(resolve, 0))
+}
+
+const PANE_COMMANDS = ['flightdeck', 'pinboard', 'buffer-pane', 'usage-pane']
+const paneRuns = (runs: Runs) => runs.filter(run => PANE_COMMANDS.includes(run.command))
+
+describe('launch', () => {
+  test('session start opens the panes in tab order: Flightdeck, Pinboard, Buffer pane, Usage', async ($, on) => {
+    const { runs } = await start($, on)
+    await settle()
+    expect(paneRuns(runs)).toEqual([
+      { command: 'flightdeck', args: 'open' },
+      { command: 'pinboard', args: '' },
+      { command: 'buffer-pane', args: 'open' },
+      { command: 'usage-pane', args: 'open' },
+    ])
+  })
+
+  test('a pane already open is left alone', async ($, on) => {
+    on('state.get', { plugin: 'flightdeck', key: 'paneOpen' }, async () => ({ value: { value: true, version: 1 } }))
+    const { runs } = await start($, on)
+    await settle()
+    expect(paneRuns(runs).map(run => run.command)).toEqual(['pinboard', 'buffer-pane', 'usage-pane'])
+  })
+
+  test('a second session.start (a reload) opens nothing again', async ($, on) => {
+    const { runs } = await start($, on)
+    await settle()
+    await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+    await settle()
+    expect(paneRuns(runs)).toHaveLength(4)
+  })
+
+  test('a mod with no command is skipped and the rest still open', async ($, on) => {
+    on('command.run', { command: 'pinboard' }, async () => {
+      throw new Error('unknown command')
+    })
+    const { runs } = await start($, on)
+    await settle()
+    expect(paneRuns(runs).map(run => run.command)).toEqual(['flightdeck', 'buffer-pane', 'usage-pane'])
+  })
+
+  test('a session with no person at the prompt opens nothing', async ($, on) => {
+    const runs: Runs = []
+    mock.store(on)
+    on('command.register', async (_$, e) => ({ value: { command: e.name } }))
+    on('process.run', async () => ({ value: { exitCode: 1, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+    on('command.run', async (_$, e) => {
+      runs.push({ command: e.command, args: e.args })
+      return { text: 'ok' }
+    })
+    on('config.list', async () => ({ value: [] }))
+    on('settings.read', async () => ({ value: {} }))
+    on('session.start', async (_$, e) => ({ cwd: e.cwd }))
+    await $.session.start({ cwd: '/tmp', surface: null, isInteractive: false })
+    await settle()
+    expect(paneRuns(runs)).toEqual([])
+  })
+})

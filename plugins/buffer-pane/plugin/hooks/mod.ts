@@ -45,7 +45,7 @@ const REPLACE_NOTE = '[+] replaces the prompt box with the block. [>] sends the 
 type Host = {
   cwd: () => Promise<string>
   status: (text: string | undefined) => void
-  open: () => Promise<void>
+  open: (isFocused: boolean) => Promise<void>
   close: () => Promise<void>
   invalidate: () => void
   log: (text: string) => void
@@ -91,7 +91,8 @@ function hostOf($: any): Host {
   return {
     cwd: () => $.session.cwd(),
     status: (text) => $.ui.status(text),
-    open: () => $.ui.open({ id: PANE_ID, title: PANE_TITLE, columns: PANE_COLUMNS, focus: true }),
+    open: (isFocused) =>
+      $.ui.open({ id: PANE_ID, title: PANE_TITLE, columns: PANE_COLUMNS, ...(isFocused ? { focus: true as const } : {}) }),
     close: () => $.ui.close({ id: PANE_ID }),
     invalidate: () => $.ui.invalidate('ui.render'),
     log: (text) => $.ui.log(text),
@@ -489,7 +490,7 @@ export function register(on: On) {
     // A reload keeps the pane up but starts this module over: ask the engine whether it is open
     state.isOpen = await state.host.isPaneUp().catch(() => false)
     await state.host.publishOpen(state.isOpen).catch(() => undefined)
-    // Local patch: no open on launch. Only Flightdeck opens unasked; /buffer-pane opens this one.
+    // Local patch: no open of its own on launch. Mod Tools opens the panes in tab order.
     return next(e)
   })
 
@@ -497,18 +498,23 @@ export function register(on: On) {
     const host = state.host
     if (host === null) return next(e)
 
-    if (state.isOpen) {
+    // Local patch: `open` and `close` are for Mod Tools, which must not toggle blindly. They
+    // answer with no line, and `open` leaves the keyboard on the prompt. No argument toggles.
+    const verb = e.args.trim().toLowerCase()
+    const isExplicit = verb === 'open' || verb === 'close'
+    if (state.isOpen && verb !== 'open') {
       await host.close()
       state.isOpen = false
       await host.publishOpen(false).catch(() => undefined)
-      return { text: 'buffer-pane hidden' }
+      return isExplicit ? {} : { text: 'buffer-pane hidden' }
     }
+    if (verb === 'close') return {}
 
     await load(state, host)
-    await host.open()
+    await host.open(!isExplicit)
     state.isOpen = true
     await host.publishOpen(true).catch(() => undefined)
-    return { text: 'buffer-pane shown' }
+    return isExplicit ? {} : { text: 'buffer-pane shown' }
   })
 
   on('ui.render', { component: 'Pane' }, async ($, e, next) => {
